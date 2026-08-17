@@ -1,0 +1,59 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Light Palette Colors -->
+    <Color x:Key="BgMainColor">#F1F5F9</Color>       <!-- Slate 100 -->
+    <Color x:Key="BgSurfaceColor">#FFFFFF</Color>    <!-- White -->
+    <Color x:Key="BgHeaderColor">#E2E8F0</Color>     <!-- Slate 200 -->
+    <Color x:Key="BgSidebarColor">#F8FAFC</Color>    <!-- Slate 50 -->
+    <Color x:Key="BgInputColor">#FFFFFF</Color>
+    <Color x:Key="BgCardColor">#FFFFFF</Color>
+    <Color x:Key="BgTabSelectedColor">#FFFFFF</Color>
+
+    <Color x:Key="FgMainColor">#0F172A</Color>       <!-- Slate 900 -->
+    <Color x:Key="FgSecondaryColor">#475569</Color>  <!-- Slate 600 -->
+    <Color x:Key="FgMutedColor">#94A3B8</Color>      <!-- Slate 400 -->
+    <Color x:Key="BorderColor">#CBD5E1</Color>       <!-- Slate 300 -->
+
+    <Color x:Key="AccentColor">#1D4ED8</Color>       <!-- Blue 700 -->
+    <Color x:Key="AccentHoverColor">#2563EB</Color>  <!-- Blue 600 -->
+    <Color x:Key="AccentSuccessColor">#059669</Color><!-- Emerald 600 -->
+    <Color x:Key="AccentWarningColor">#D97706</Color><!-- Amber 600 -->
+    <Color x:Key="AccentDangerColor">#DC2626</Color> <!-- Red 600 -->
+
+    <!-- Diff Colors for DataGrid (Light) -->
+    <Color x:Key="DiffModifiedBgColor">#FEF3C7</Color> <!-- Amber Light -->
+    <Color x:Key="DiffModifiedFgColor">#92400E</Color>
+    <Color x:Key="DiffInsertedBgColor">#D1FAE5</Color> <!-- Green Light -->
+    <Color x:Key="DiffInsertedFgColor">#065F46</Color>
+    <Color x:Key="DiffDeletedBgColor">#FEE2E2</Color>  <!-- Red Light -->
+    <Color x:Key="DiffDeletedFgColor">#991B1B</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="BgMainBrush" Color="{StaticResource BgMainColor}" />
+    <SolidColorBrush x:Key="BgSurfaceBrush" Color="{StaticResource BgSurfaceColor}" />
+    <SolidColorBrush x:Key="BgHeaderBrush" Color="{StaticResource BgHeaderColor}" />
+    <SolidColorBrush x:Key="BgSidebarBrush" Color="{StaticResource BgSidebarColor}" />
+    <SolidColorBrush x:Key="BgInputBrush" Color="{StaticResource BgInputColor}" />
+    <SolidColorBrush x:Key="BgCardBrush" Color="{StaticResource BgCardColor}" />
+    <SolidColorBrush x:Key="BgTabSelectedBrush" Color="{StaticResource BgTabSelectedColor}" />
+
+    <SolidColorBrush x:Key="FgMainBrush" Color="{StaticResource FgMainColor}" />
+    <SolidColorBrush x:Key="FgSecondaryBrush" Color="{StaticResource FgSecondaryColor}" />
+    <SolidColorBrush x:Key="FgMutedBrush" Color="{StaticResource FgMutedColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="AccentSuccessBrush" Color="{StaticResource AccentSuccessColor}" />
+    <SolidColorBrush x:Key="AccentWarningBrush" Color="{StaticResource AccentWarningColor}" />
+    <SolidColorBrush x:Key="AccentDangerBrush" Color="{StaticResource AccentDangerColor}" />
+
+    <SolidColorBrush x:Key="DiffModifiedBgBrush" Color="{StaticResource DiffModifiedBgColor}" />
+    <SolidColorBrush x:Key="DiffModifiedFgBrush" Color="{StaticResource DiffModifiedFgColor}" />
+    <SolidColorBrush x:Key="DiffInsertedBgBrush" Color="{StaticResource DiffInsertedBgColor}" />
+    <SolidColorBrush x:Key="DiffInsertedFgBrush" Color="{StaticResource DiffInsertedFgColor}" />
+    <SolidColorBrush x:Key="DiffDeletedBgBrush" Color="{StaticResource DiffDeletedBgColor}" />
+    <SolidColorBrush x:Key="DiffDeletedFgBrush" Color="{StaticResource DiffDeletedFgColor}" />
+
+</ResourceDictionary>

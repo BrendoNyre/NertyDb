@@ -1,0 +1,155 @@
+<?xml version="1.0"?>
+<SyntaxDefinition name="SQL" extensions=".sql" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Comment" foreground="#6A9955" exampleText="-- comment" />
+  <Color name="String" foreground="#CE9178" exampleText="'Hello World'" />
+  <Color name="Keywords" foreground="#569CD6" fontWeight="bold" exampleText="SELECT" />
+  <Color name="Functions" foreground="#DCDCAA" exampleText="COUNT()" />
+  <Color name="DataTypes" foreground="#4EC9B0" exampleText="VARCHAR" />
+  <Color name="Digits" foreground="#B5CEA8" exampleText="123" />
+  <Color name="Operators" foreground="#D4D4D4" exampleText="=" />
+
+  <RuleSet>
+    <!-- Line comment -->
+    <Span color="Comment" begin="--" />
+    <!-- Block comment -->
+    <Span color="Comment" multiline="true" begin="/\*" end="\*/" />
+    
+    <!-- String literal -->
+    <Span color="String">
+      <Begin>'</Begin>
+      <End>'</End>
+      <RuleSet>
+        <Span begin="''" end="" />
+      </RuleSet>
+    </Span>
+
+    <!-- Quoted Identifiers -->
+    <Span color="String" begin="\[" end="\]" />
+
+    <!-- Digits -->
+    <Rule color="Digits">\b0[xX][0-9a-fA-F]+|(\b\d+(\.[0-9]+)?|\.[0-9]+)([eE][+-]?[0-9]+)?</Rule>
+
+    <!-- Keywords -->
+    <Keywords color="Keywords">
+      <Word>SELECT</Word>
+      <Word>FROM</Word>
+      <Word>WHERE</Word>
+      <Word>INSERT</Word>
+      <Word>INTO</Word>
+      <Word>UPDATE</Word>
+      <Word>DELETE</Word>
+      <Word>SET</Word>
+      <Word>VALUES</Word>
+      <Word>CREATE</Word>
+      <Word>ALTER</Word>
+      <Word>DROP</Word>
+      <Word>TABLE</Word>
+      <Word>VIEW</Word>
+      <Word>INDEX</Word>
+      <Word>PROCEDURE</Word>
+      <Word>FUNCTION</Word>
+      <Word>TRIGGER</Word>
+      <Word>JOIN</Word>
+      <Word>INNER</Word>
+      <Word>LEFT</Word>
+      <Word>RIGHT</Word>
+      <Word>FULL</Word>
+      <Word>OUTER</Word>
+      <Word>CROSS</Word>
+      <Word>ON</Word>
+      <Word>AS</Word>
+      <Word>AND</Word>
+      <Word>OR</Word>
+      <Word>NOT</Word>
+      <Word>IN</Word>
+      <Word>IS</Word>
+      <Word>NULL</Word>
+      <Word>LIKE</Word>
+      <Word>BETWEEN</Word>
+      <Word>EXISTS</Word>
+      <Word>GROUP</Word>
+      <Word>BY</Word>
+      <Word>HAVING</Word>
+      <Word>ORDER</Word>
+      <Word>ASC</Word>
+      <Word>DESC</Word>
+      <Word>TOP</Word>
+      <Word>DISTINCT</Word>
+      <Word>UNION</Word>
+      <Word>ALL</Word>
+      <Word>CASE</Word>
+      <Word>WHEN</Word>
+      <Word>THEN</Word>
+      <Word>ELSE</Word>
+      <Word>END</Word>
+      <Word>BEGIN</Word>
+      <Word>COMMIT</Word>
+      <Word>ROLLBACK</Word>
+      <Word>TRANSACTION</Word>
+      <Word>TRAN</Word>
+      <Word>TRY</Word>
+      <Word>CATCH</Word>
+      <Word>DECLARE</Word>
+      <Word>EXEC</Word>
+      <Word>EXECUTE</Word>
+      <Word>PRINT</Word>
+      <Word>RAISERROR</Word>
+      <Word>THROW</Word>
+      <Word>GO</Word>
+    </Keywords>
+
+    <!-- Data Types -->
+    <Keywords color="DataTypes">
+      <Word>INT</Word>
+      <Word>BIGINT</Word>
+      <Word>SMALLINT</Word>
+      <Word>TINYINT</Word>
+      <Word>BIT</Word>
+      <Word>DECIMAL</Word>
+      <Word>NUMERIC</Word>
+      <Word>MONEY</Word>
+      <Word>FLOAT</Word>
+      <Word>REAL</Word>
+      <Word>DATETIME</Word>
+      <Word>DATETIME2</Word>
+      <Word>DATE</Word>
+      <Word>TIME</Word>
+      <Word>VARCHAR</Word>
+      <Word>NVARCHAR</Word>
+      <Word>CHAR</Word>
+      <Word>NCHAR</Word>
+      <Word>TEXT</Word>
+      <Word>NTEXT</Word>
+      <Word>VARBINARY</Word>
+      <Word>IMAGE</Word>
+      <Word>UNIQUEIDENTIFIER</Word>
+    </Keywords>
+
+    <!-- Functions -->
+    <Keywords color="Functions">
+      <Word>COUNT</Word>
+      <Word>COUNT_BIG</Word>
+      <Word>SUM</Word>
+      <Word>AVG</Word>
+      <Word>MIN</Word>
+      <Word>MAX</Word>
+      <Word>GETDATE</Word>
+      <Word>SYSDATETIME</Word>
+      <Word>DATEADD</Word>
+      <Word>DATEDIFF</Word>
+      <Word>DATEPART</Word>
+      <Word>ISNULL</Word>
+      <Word>COALESCE</Word>
+      <Word>CONVERT</Word>
+      <Word>CAST</Word>
+      <Word>SUBSTRING</Word>
+      <Word>LEN</Word>
+      <Word>LTRIM</Word>
+      <Word>RTRIM</Word>
+      <Word>TRIM</Word>
+      <Word>REPLACE</Word>
+      <Word>UPPER</Word>
+      <Word>LOWER</Word>
+    </Keywords>
+  </RuleSet>
+</SyntaxDefinition>

@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8B294C2E-8137-4C65-A8D2-9862930558D9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NertyDb.Tests", "tests\NertyDb.Tests\NertyDb.Tests.csproj", "{37BC4C01-88AC-4384-90D2-55D3D20ACB6E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{BF28CB99-F0A7-462B-B5DE-BC072144A61B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NertyDb", "src\NertyDb\NertyDb.csproj", "{5F2F5A87-CC82-4676-8788-15ACCCAC027B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{37BC4C01-88AC-4384-90D2-55D3D20ACB6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37BC4C01-88AC-4384-90D2-55D3D20ACB6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37BC4C01-88AC-4384-90D2-55D3D20ACB6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37BC4C01-88AC-4384-90D2-55D3D20ACB6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F2F5A87-CC82-4676-8788-15ACCCAC027B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F2F5A87-CC82-4676-8788-15ACCCAC027B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F2F5A87-CC82-4676-8788-15ACCCAC027B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F2F5A87-CC82-4676-8788-15ACCCAC027B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{37BC4C01-88AC-4384-90D2-55D3D20ACB6E} = {8B294C2E-8137-4C65-A8D2-9862930558D9}
+		{5F2F5A87-CC82-4676-8788-15ACCCAC027B} = {BF28CB99-F0A7-462B-B5DE-BC072144A61B}
+	EndGlobalSection
+EndGlobal

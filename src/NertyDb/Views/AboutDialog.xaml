@@ -1,0 +1,79 @@
+<Window x:Class="NertyDb.Views.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sobre o NertyDb — Cliente Senior"
+        Width="580" Height="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BgMainBrush}"
+        Foreground="{DynamicResource FgMainBrush}"
+        ResizeMode="NoResize">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Margin="0,0,0,16" Padding="0,0,0,12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock Text="⚡ NertyDb — Cliente de Banco de Dados Senior" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="Versão 1.0 Portable • Substituto Moderno do CBDS" Foreground="{DynamicResource FgSecondaryBrush}" FontSize="12" Margin="0,4,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- Body with Shortcuts & Senior info -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Atalhos Rápidos de Teclado:" FontWeight="SemiBold" Foreground="{DynamicResource FgMainBrush}" Margin="0,0,0,8" />
+                
+                <Border Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="F5 ou Ctrl+Enter" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,2" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Executa a consulta SQL selecionada" Margin="0,2" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl+S" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,2" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="Salva / Abre revisão de alterações (Commit)" Margin="0,2" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Ctrl+Espaço" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,2" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="Abre autocomplete de tabelas e colunas" Margin="0,2" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Ctrl+N" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,2" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="Abre nova aba de consulta SQL" Margin="0,2" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Duplo-clique na Célula" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,2" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="Edita o valor diretamente na grade" Margin="0,2" />
+                    </Grid>
+                </Border>
+
+                <TextBlock Text="Recursos de Portabilidade e Segurança:" FontWeight="SemiBold" Foreground="{DynamicResource FgMainBrush}" Margin="0,0,0,8" />
+                <Border Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="• Executável único e autônomo (.exe) sem necessidade de instalação." Margin="0,2" />
+                        <TextBlock Text="• Configurações e conexões salvas na pasta local 'data/' ao lado do executável." Margin="0,2" />
+                        <TextBlock Text="• Criptografia local de senhas via Windows DPAPI (sem texto puro)." Margin="0,2" />
+                        <TextBlock Text="• 100% offline — sem telemetria e sem dependência de internet." Margin="0,2" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <DockPanel Grid.Row="2" Margin="0,12,0,0">
+            <Button Content="Fechar" Click="Close_Click" HorizontalAlignment="Right" Padding="20,6" Style="{StaticResource PrimaryButton}" />
+        </DockPanel>
+    </Grid>
+</Window>
