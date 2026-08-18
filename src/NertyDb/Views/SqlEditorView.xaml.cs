@@ -49,25 +49,46 @@ namespace NertyDb.Views
             Editor.KeyDown += Editor_KeyDown;
         }
 
+        private static IHighlightingDefinition? _cachedSqlHighlighting;
+        private static readonly object _highlightingLock = new();
+
         private void LoadSyntaxHighlighting()
         {
-            try
+            if (_cachedSqlHighlighting != null)
             {
-                var xshdPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "SqlHighlighting.xshd");
-                if (File.Exists(xshdPath))
+                Editor.SyntaxHighlighting = _cachedSqlHighlighting;
+                return;
+            }
+
+            lock (_highlightingLock)
+            {
+                if (_cachedSqlHighlighting != null)
                 {
-                    using var reader = XmlReader.Create(xshdPath);
-                    Editor.SyntaxHighlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
+                    Editor.SyntaxHighlighting = _cachedSqlHighlighting;
                     return;
                 }
-            }
-            catch { }
 
-            try
-            {
-                Editor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("C#");
+                try
+                {
+                    var assembly = typeof(SqlEditorView).Assembly;
+                    using var stream = assembly.GetManifestResourceStream("NertyDb.Resources.SqlHighlighting.xshd");
+                    if (stream != null)
+                    {
+                        using var reader = XmlReader.Create(stream);
+                        _cachedSqlHighlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
+                        Editor.SyntaxHighlighting = _cachedSqlHighlighting;
+                        return;
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    _cachedSqlHighlighting = HighlightingManager.Instance.GetDefinition("C#");
+                    Editor.SyntaxHighlighting = _cachedSqlHighlighting;
+                }
+                catch { }
             }
-            catch { }
         }
 
         private void SqlEditorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

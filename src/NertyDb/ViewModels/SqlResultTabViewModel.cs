@@ -11,7 +11,7 @@ using NertyDb.Services;
 
 namespace NertyDb.ViewModels
 {
-    public class SqlResultTabViewModel : ObservableObject
+    public class SqlResultTabViewModel : ObservableObject, IDisposable
     {
         private readonly ConnectionProfile _connection;
         private readonly string _database;
@@ -619,6 +619,22 @@ namespace NertyDb.ViewModels
             OnPropertyChanged(nameof(PendingBadgeText));
             (CommitChangesCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (DiscardChangesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _originalRowValues.Clear();
+                ModifiedCellsByRow.Clear();
+                InsertedRowIndices.Clear();
+                DeletedRowIndices.Clear();
+                PendingChanges.Clear();
+
+                _data?.Clear();
+                _data?.Dispose();
+            }
+            catch { }
         }
     }
 }

@@ -15,7 +15,7 @@ using NertyDb.Services;
 
 namespace NertyDb.ViewModels
 {
-    public class SqlEditorViewModel : ObservableObject
+    public class SqlEditorViewModel : ObservableObject, IDisposable
     {
         private readonly IDbDriver _driver;
         private readonly ExportService _exportService;
@@ -320,6 +320,23 @@ namespace NertyDb.ViewModels
             }
 
             return formatted;
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+
+                foreach (var tab in ResultTabs.ToList())
+                {
+                    tab.Dispose();
+                }
+                ResultTabs.Clear();
+            }
+            catch { }
         }
     }
 }

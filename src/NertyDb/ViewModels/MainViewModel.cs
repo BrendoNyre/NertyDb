@@ -195,6 +195,8 @@ namespace NertyDb.ViewModels
                         if (result != MessageBoxResult.Yes) return;
                     }
                     DocumentTabs.Remove(tab);
+                    (tab as IDisposable)?.Dispose();
+
                     if (SelectedTab == tab)
                     {
                         SelectedTab = DocumentTabs.LastOrDefault();
@@ -208,6 +210,7 @@ namespace NertyDb.ViewModels
                 foreach (var t in tabs)
                 {
                     DocumentTabs.Remove(t);
+                    (t as IDisposable)?.Dispose();
                 }
                 SelectedTab = null;
             }, () => DocumentTabs.Count > 0);

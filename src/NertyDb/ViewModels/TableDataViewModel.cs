@@ -13,7 +13,7 @@ using NertyDb.Services;
 
 namespace NertyDb.ViewModels
 {
-    public class TableDataViewModel : ObservableObject
+    public class TableDataViewModel : ObservableObject, IDisposable
     {
         private readonly IDbDriver _driver;
         private readonly ExportService _exportService;
@@ -702,6 +702,26 @@ namespace NertyDb.ViewModels
             OnPropertyChanged(nameof(PendingBadgeText));
             (CommitChangesCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (DiscardChangesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+
+                _originalRowValues.Clear();
+                ModifiedCellsByRow.Clear();
+                InsertedRowIndices.Clear();
+                DeletedRowIndices.Clear();
+                PendingChanges.Clear();
+
+                _tableData?.Clear();
+                _tableData?.Dispose();
+            }
+            catch { }
         }
     }
 }

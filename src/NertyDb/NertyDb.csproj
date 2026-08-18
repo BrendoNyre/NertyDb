@@ -16,6 +16,15 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+    <!-- IL Trimming Optimizations (Reduces bundle size by removing unused WinForms & legacy framework DLLs) -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <_SuppressWpfTrimError>true</_SuppressWpfTrimError>
+    
+    <!-- Garbage Collection & Runtime Performance -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,10 +34,16 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
+  <!-- Root assemblies to preserve all reflection and data bindings -->
   <ItemGroup>
-    <None Update="Resources\SqlHighlighting.xshd">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <TrimmerRootAssembly Include="NertyDb" />
+    <TrimmerRootAssembly Include="ICSharpCode.AvalonEdit" />
+    <TrimmerRootAssembly Include="Microsoft.Data.SqlClient" />
+    <TrimmerRootAssembly Include="Oracle.ManagedDataAccess" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\SqlHighlighting.xshd" />
   </ItemGroup>
 
 </Project>
