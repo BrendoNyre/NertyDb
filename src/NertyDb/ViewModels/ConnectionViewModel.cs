@@ -498,10 +498,14 @@ namespace NertyDb.ViewModels
         private async Task ExecuteTestConnectionAsync()
         {
             if (SelectedProfile == null) return;
-            SyncSeniorAliasToProfile();
+            if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
+            {
+                SyncSeniorAliasToProfile();
+            }
+
             IsTesting = true;
             HasTested = false;
-            TestResultMessage = $"Testando conexão com a base {SelectedProfile.SeniorAlias ?? SelectedProfile.Database}...";
+            TestResultMessage = $"Testando conexão com {SelectedProfile.DatabaseType}...";
 
             try
             {
@@ -534,26 +538,37 @@ namespace NertyDb.ViewModels
                     return;
                 }
 
-                // Validate SGU user
-                TestResultMessage = $"Conexão física OK ({latency} ms). Validando usuário SGU '{SelectedProfile.SguUsername}'...";
-                var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
-                    driver,
-                    SelectedProfile,
-                    SelectedDatabase,
-                    SelectedProfile.SguUsername,
-                    SelectedProfile.SguPassword);
-
-                if (!sguResult.IsSuccess)
+                // If SGU Authentication mode is enabled, test SGU user validation
+                if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
                 {
-                    TestSuccess = false;
-                    TestResultMessage = $"⚠️ Conexão com banco OK ({latency} ms), mas o usuário SGU falhou:\r\n{sguResult.ErrorMessage}";
+                    TestResultMessage = $"Conexão física OK ({latency} ms). Validando usuário SGU '{SelectedProfile.SguUsername}'...";
+                    var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                        driver,
+                        SelectedProfile,
+                        SelectedDatabase,
+                        SelectedProfile.SguUsername,
+                        SelectedProfile.SguPassword);
+
+                    if (!sguResult.IsSuccess)
+                    {
+                        TestSuccess = false;
+                        TestResultMessage = $"⚠️ Conexão com banco OK ({latency} ms), mas o usuário SGU falhou:\r\n{sguResult.ErrorMessage}";
+                        HasTested = true;
+                        return;
+                    }
+
+                    TestSuccess = true;
+                    TestResultMessage = $"✅ Conexão e Autenticação SGU OK ({latency} ms)!\r\nUsuário: {sguResult.UserName} (Cód: {sguResult.UserCode}) • Grupo: {sguResult.GroupName}";
                     HasTested = true;
-                    return;
+                }
+                else
+                {
+                    TestSuccess = true;
+                    TestResultMessage = $"✅ Conexão com o banco estabelecida com sucesso ({latency} ms)!";
+                    HasTested = true;
                 }
 
-                TestSuccess = true;
-                TestResultMessage = $"✅ Conexão e Autenticação SGU OK ({latency} ms)!\r\nUsuário: {sguResult.UserName} (Cód: {sguResult.UserCode}) • Grupo: {sguResult.GroupName}";
-                HasTested = true;
+                _ = ExecuteFetchDatabasesAsync();
             }
             catch (Exception ex)
             {
@@ -599,11 +614,16 @@ namespace NertyDb.ViewModels
         private async Task ExecuteConnectAsync()
         {
             if (SelectedProfile == null) return;
-            SyncSeniorAliasToProfile();
+            if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
+            {
+                SyncSeniorAliasToProfile();
+            }
 
             IsTesting = true;
             HasTested = false;
-            TestResultMessage = "Conectando e validando usuário SGU...";
+            TestResultMessage = SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu 
+                ? "Conectando e validando usuário SGU..." 
+                : "Conectando ao banco de dados...";
 
             var driver = DbDriverFactory.GetDriver(SelectedProfile);
             
@@ -634,21 +654,28 @@ namespace NertyDb.ViewModels
                 return;
             }
 
-            // Validate SGU user
-            var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
-                driver,
-                SelectedProfile,
-                SelectedDatabase,
-                SelectedProfile.SguUsername,
-                SelectedProfile.SguPassword);
-            IsTesting = false;
-
-            if (!sguResult.IsSuccess)
+            // Validate SGU user if in SGU mode
+            if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
             {
-                TestSuccess = false;
-                TestResultMessage = sguResult.ErrorMessage ?? "Erro de autenticação SGU.";
-                HasTested = true;
-                return;
+                var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                    driver,
+                    SelectedProfile,
+                    SelectedDatabase,
+                    SelectedProfile.SguUsername,
+                    SelectedProfile.SguPassword);
+                IsTesting = false;
+
+                if (!sguResult.IsSuccess)
+                {
+                    TestSuccess = false;
+                    TestResultMessage = sguResult.ErrorMessage ?? "Erro de autenticação SGU.";
+                    HasTested = true;
+                    return;
+                }
+            }
+            else
+            {
+                IsTesting = false;
             }
 
             SelectedProfile.UpdateEncryptedPassword();

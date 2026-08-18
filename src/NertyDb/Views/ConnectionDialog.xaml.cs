@@ -18,11 +18,12 @@ namespace NertyDb.Views
                 Close();
             };
 
-            // Set initial password into passwordbox
+            // Set initial passwords into passwordboxes
             if (viewModel.SelectedProfile != null)
             {
                 _isSyncing = true;
-                TxtSguPassword.Password = viewModel.SelectedProfile.SguPassword ?? string.Empty;
+                if (TxtPassword != null) TxtPassword.Password = viewModel.SelectedProfile.Password ?? string.Empty;
+                if (TxtSguPassword != null) TxtSguPassword.Password = viewModel.SelectedProfile.SguPassword ?? string.Empty;
                 _isSyncing = false;
             }
 
@@ -31,16 +32,33 @@ namespace NertyDb.Views
                 if (e.PropertyName == nameof(ConnectionViewModel.SelectedProfile) && viewModel.SelectedProfile != null)
                 {
                     _isSyncing = true;
-                    TxtSguPassword.Password = viewModel.SelectedProfile.SguPassword ?? string.Empty;
+                    if (TxtPassword != null) TxtPassword.Password = viewModel.SelectedProfile.Password ?? string.Empty;
+                    if (TxtSguPassword != null) TxtSguPassword.Password = viewModel.SelectedProfile.SguPassword ?? string.Empty;
+                    _isSyncing = false;
+                }
+                else if (e.PropertyName == nameof(ConnectionViewModel.CurrentPassword) && !_isSyncing)
+                {
+                    _isSyncing = true;
+                    if (TxtPassword != null) TxtPassword.Password = viewModel.CurrentPassword ?? string.Empty;
                     _isSyncing = false;
                 }
                 else if (e.PropertyName == nameof(ConnectionViewModel.CurrentSguPassword) && !_isSyncing)
                 {
                     _isSyncing = true;
-                    TxtSguPassword.Password = viewModel.CurrentSguPassword ?? string.Empty;
+                    if (TxtSguPassword != null) TxtSguPassword.Password = viewModel.CurrentSguPassword ?? string.Empty;
                     _isSyncing = false;
                 }
             };
+        }
+
+        private void TxtPassword_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (!_isSyncing && DataContext is ConnectionViewModel vm && vm.SelectedProfile != null)
+            {
+                _isSyncing = true;
+                vm.CurrentPassword = TxtPassword.Password;
+                _isSyncing = false;
+            }
         }
 
         private void TxtSguPassword_PasswordChanged(object sender, RoutedEventArgs e)
