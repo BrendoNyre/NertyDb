@@ -17,10 +17,11 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 
-    <!-- IL Trimming Optimizations (Reduces bundle size by removing unused WinForms & legacy framework DLLs) -->
+    <!-- IL Trimming Optimizations with Full COM Interop and WPF Support -->
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <_SuppressWpfTrimError>true</_SuppressWpfTrimError>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     
     <!-- Garbage Collection & Runtime Performance -->
     <ServerGarbageCollection>false</ServerGarbageCollection>

@@ -350,6 +350,12 @@ namespace NertyDb.ViewModels
 
         public void ExecuteAddNewRow(object? _ = null)
         {
+            foreach (DataColumn col in Data.Columns)
+            {
+                col.ReadOnly = false;
+                col.AllowDBNull = true;
+            }
+
             var newRow = Data.NewRow();
             foreach (DataColumn col in Data.Columns)
             {
@@ -400,6 +406,12 @@ namespace NertyDb.ViewModels
             }
 
             if (sourceRow == null) return;
+
+            foreach (DataColumn col in Data.Columns)
+            {
+                col.ReadOnly = false;
+                col.AllowDBNull = true;
+            }
 
             var newRow = Data.NewRow();
             var change = new PendingChange

@@ -463,6 +463,12 @@ namespace NertyDb.ViewModels
         {
             if (IsReadOnly) return;
 
+            foreach (DataColumn col in TableData.Columns)
+            {
+                col.ReadOnly = false;
+                col.AllowDBNull = true;
+            }
+
             var newRow = TableData.NewRow();
             foreach (DataColumn col in TableData.Columns)
             {
@@ -513,6 +519,12 @@ namespace NertyDb.ViewModels
             }
 
             if (sourceRow == null) return;
+
+            foreach (DataColumn col in TableData.Columns)
+            {
+                col.ReadOnly = false;
+                col.AllowDBNull = true;
+            }
 
             var newRow = TableData.NewRow();
             var change = new PendingChange

@@ -32,8 +32,14 @@ namespace NertyDb
             LogException("DispatcherUnhandledException", e.Exception);
             e.Handled = true; // Prevent app termination!
 
+            var msg = e.Exception.Message;
+            if (string.IsNullOrWhiteSpace(msg) || e.Exception.StackTrace?.Contains("RegisterDragDrop") == true)
+            {
+                return;
+            }
+
             MessageBox.Show(
-                $"Ocorreu um erro na interface:\r\n\r\n{e.Exception.Message}\r\n\r\nOs detalhes foram salvos em: {LogFilePath}",
+                $"Ocorreu um erro na interface:\r\n\r\n{msg}\r\n\r\nOs detalhes foram salvos em: {LogFilePath}",
                 "NertyDb — Aviso do Sistema",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
