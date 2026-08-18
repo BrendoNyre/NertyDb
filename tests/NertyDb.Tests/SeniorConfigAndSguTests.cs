@@ -145,5 +145,71 @@ namespace NertyDb.Tests
             var dec = SeniorCryptoService.Decrypt(enc, SeniorCryptoService.DbKey);
             Assert.Equal(original, dec);
         }
+
+        [Fact]
+        public void SeniorCryptoService_EncryptUserPassword_MatchesKnownVectors()
+        {
+            byte[] expectedSenior = new byte[] { 0x90, 0x9A, 0x4E, 0xA2, 0x97, 0x49, 0x8C, 0x91, 0x96, 0x8D };
+            byte[] actualSenior = SeniorCryptoService.EncryptUserPassword("SENIOR", "senior");
+            Assert.Equal(expectedSenior, actualSenior);
+
+            byte[] expectedWrong = new byte[] { 0x8B, 0x4E, 0xA2, 0x97, 0x49, 0x8B };
+            byte[] actualWrong = SeniorCryptoService.EncryptUserPassword("SENIOR", "tt");
+            Assert.Equal(expectedWrong, actualWrong);
+
+            Assert.NotEqual(expectedSenior, actualWrong);
+        }
+
+        [Fact]
+        public void SeniorCryptoService_DecodeUserDataAndValidatePassword()
+        {
+            // Real sample from senior database for SENIOR user
+            string dat1 = "%!!!!!:425Z*4V)!*$O%:IP)Y5!'=W6O;7^S!!K1GE[CFUG-E:;.!!!!!!!!!!!!!!!!!!!!!!$CI<0F.*4G1#!O%P#UCO2!!!!!!!%!!!!\"!!!!!1!!!!%!!!!\"!!!!!1!!!!%!!!!\"!!$!QD_G3H;GZ%!!!#!O%P#UCO2!!!!!!!!!!!!!!!!!!!!!!!!!!!$;\"A`^+E)";
+            byte[] userStream = SeniorCryptoService.DecodeUserData(new[] { dat1 });
+            Assert.NotEmpty(userStream);
+
+            // Correct password
+            bool valid = SeniorCryptoService.ValidateSguPassword("SENIOR", "senior", userStream);
+            Assert.True(valid);
+
+            // Incorrect password
+            bool invalid = SeniorCryptoService.ValidateSguPassword("SENIOR", "tt", userStream);
+            Assert.False(invalid);
+        }
+
+        [Fact]
+        public async Task SguAuthenticationService_ValidatesRealCredentials()
+        {
+            var profile = new ConnectionProfile
+            {
+                DatabaseType = DatabaseType.SqlServer,
+                Server = "127.0.0.1",
+                Port = 1433,
+                Database = "senior",
+                AuthType = AuthenticationType.SqlServer,
+                Username = "sa",
+                Password = "12345678",
+                SeniorAuthMode = SeniorAuthMode.SeniorSgu
+            };
+
+            var driver = NertyDb.Data.DbDriverFactory.GetDriver(profile);
+            var (canConnect, _, _) = await driver.TestConnectionAsync(profile);
+            if (!canConnect) return; // Skip if local SQL instance is not running
+
+            // 1. Correct credentials: SENIOR / senior
+            var resOk = await SguAuthenticationService.ValidateSguUserAsync(driver, profile, "senior", "senior", "senior");
+            Assert.True(resOk.IsSuccess);
+            Assert.Equal("SENIOR", resOk.UserName.ToUpperInvariant());
+
+            // 2. Incorrect credentials: SENIOR / tt
+            var resWrong = await SguAuthenticationService.ValidateSguUserAsync(driver, profile, "senior", "senior", "tt");
+            Assert.False(resWrong.IsSuccess);
+            Assert.Contains("Senha inválida", resWrong.ErrorMessage);
+
+            // 3. Inexistent user: usuario_inexistente_xyz
+            var resNotFound = await SguAuthenticationService.ValidateSguUserAsync(driver, profile, "senior", "usuario_inexistente_xyz", "123");
+            Assert.False(resNotFound.IsSuccess);
+            Assert.Contains("não encontrado", resNotFound.ErrorMessage);
+        }
     }
 }
