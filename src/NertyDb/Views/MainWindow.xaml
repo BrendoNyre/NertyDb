@@ -100,7 +100,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                                      Padding="6,4"
                                      Background="{DynamicResource BgInputBrush}"
                                      ToolTip="Busca rápida por nome da tabela ou coluna (ex: r034, ponto, batida)" />
@@ -108,9 +108,12 @@
                         </Grid>
                     </Border>
 
-                    <!-- TreeView with double-click navigation -->
+                    <!-- TreeView with double-click navigation & Virtualization -->
                     <TreeView Grid.Row="1"
                               ItemsSource="{Binding FilteredNodes}"
+                              VirtualizingStackPanel.IsVirtualizing="True"
+                              VirtualizingStackPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
                               MouseDoubleClick="TreeView_MouseDoubleClick">
                         <TreeView.ItemContainerStyle>
                             <Style TargetType="{x:Type TreeViewItem}">

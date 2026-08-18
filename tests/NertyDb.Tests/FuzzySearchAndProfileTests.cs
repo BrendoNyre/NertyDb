@@ -22,6 +22,30 @@ namespace NertyDb.Tests
             var match = SchemaTreeViewModel.IsFuzzyMatch(text, pattern);
             Assert.Equal(expected, match);
         }
+
+        [Fact]
+        public void IsFuzzyMatch_LargeDataset_ShouldMatchThousandsOfTablesInMilliseconds()
+        {
+            var tables = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < 4000; i++)
+            {
+                tables.Add($"R{i:D3}TAB_{i}");
+            }
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            int matchCount = 0;
+            foreach (var t in tables)
+            {
+                if (SchemaTreeViewModel.IsFuzzyMatch(t, "tab_100"))
+                {
+                    matchCount++;
+                }
+            }
+            sw.Stop();
+
+            Assert.True(matchCount >= 1);
+            Assert.True(sw.ElapsedMilliseconds < 100, $"Expected < 100ms, took {sw.ElapsedMilliseconds}ms");
+        }
     }
 
     public class ConnectionProfileTests

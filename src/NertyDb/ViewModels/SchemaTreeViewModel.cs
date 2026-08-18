@@ -238,6 +238,7 @@ namespace NertyDb.ViewModels
         private string _searchText = string.Empty;
         private bool _isLoading;
         private string _statusMessage = string.Empty;
+        private CancellationTokenSource? _filterCts;
 
         public ObservableCollection<SchemaNode> RootNodes { get; } = new();
         public ObservableCollection<SchemaNode> FilteredNodes { get; } = new();
@@ -249,7 +250,7 @@ namespace NertyDb.ViewModels
             {
                 if (SetProperty(ref _searchText, value))
                 {
-                    ApplyFilter();
+                    DebounceApplyFilter();
                 }
             }
         }
@@ -444,7 +445,8 @@ namespace NertyDb.ViewModels
                         Connection = profile,
                         Database = selectedDatabase,
                         Tag = t,
-                        Parent = t.IsView ? viewsFolder : tablesFolder
+                        Parent = t.IsView ? viewsFolder : tablesFolder,
+                        IsExpanded = false
                     };
 
                     // Add dummy child so WPF treeview displays the expand arrow [+]
@@ -462,7 +464,7 @@ namespace NertyDb.ViewModels
                     dbNode.Children.Add(viewsFolder);
                 }
 
-                ApplyFilter();
+                DebounceApplyFilter();
                 StatusMessage = $"{tables.Count} tabelas e views carregadas com sucesso.";
             }
             catch (Exception ex)
@@ -475,47 +477,78 @@ namespace NertyDb.ViewModels
             }
         }
 
-        private void ApplyFilter()
+        private void DebounceApplyFilter()
         {
-            FilteredNodes.Clear();
-            var term = SearchText?.Trim() ?? string.Empty;
+            _filterCts?.Cancel();
+            _filterCts?.Dispose();
+            _filterCts = new CancellationTokenSource();
+            var token = _filterCts.Token;
 
-            if (string.IsNullOrEmpty(term))
+            _ = Task.Run(async () =>
             {
-                foreach (var root in RootNodes)
+                try
                 {
-                    FilteredNodes.Add(root);
-                }
-                return;
-            }
+                    var term = _searchText?.Trim() ?? string.Empty;
 
-            foreach (var root in RootNodes)
-            {
-                var filteredRoot = FilterNode(root, term);
-                if (filteredRoot != null)
-                {
-                    FilteredNodes.Add(filteredRoot);
+                    // If not empty, debounce by 120ms to allow typing
+                    if (!string.IsNullOrEmpty(term))
+                    {
+                        await Task.Delay(120, token);
+                    }
+
+                    if (token.IsCancellationRequested) return;
+
+                    List<SchemaNode> results = new();
+
+                    if (string.IsNullOrEmpty(term))
+                    {
+                        results = RootNodes.ToList();
+                    }
+                    else
+                    {
+                        foreach (var root in RootNodes)
+                        {
+                            if (token.IsCancellationRequested) return;
+                            var filtered = FilterNodeFast(root, term, token);
+                            if (filtered != null)
+                            {
+                                results.Add(filtered);
+                            }
+                        }
+                    }
+
+                    if (token.IsCancellationRequested) return;
+
+                    var app = System.Windows.Application.Current;
+                    if (app != null)
+                    {
+                        await app.Dispatcher.InvokeAsync(() =>
+                        {
+                            if (token.IsCancellationRequested) return;
+                            FilteredNodes.Clear();
+                            foreach (var node in results)
+                            {
+                                FilteredNodes.Add(node);
+                            }
+                        });
+                    }
                 }
-            }
+                catch (OperationCanceledException) { }
+                catch { }
+            }, token);
         }
 
-        private SchemaNode? FilterNode(SchemaNode node, string term)
+        private SchemaNode? FilterNodeFast(SchemaNode node, string term, CancellationToken token)
         {
-            bool selfMatches = IsFuzzyMatch(node.Title, term) || IsFuzzyMatch(node.Schema, term);
+            if (token.IsCancellationRequested) return null;
 
-            var matchedChildren = new List<SchemaNode>();
-            foreach (var child in node.Children)
+            // 1. Table or View leaf nodes
+            if (node.NodeType == SchemaNodeType.Table || node.NodeType == SchemaNodeType.View)
             {
-                var filteredChild = FilterNode(child, term);
-                if (filteredChild != null)
-                {
-                    matchedChildren.Add(filteredChild);
-                }
-            }
+                bool matches = IsFuzzyMatch(node.Title, term) || IsFuzzyMatch(node.Schema, term);
+                if (!matches) return null;
 
-            if (selfMatches || matchedChildren.Count > 0)
-            {
-                var copy = new SchemaNode
+                var tableCopy = new SchemaNode
                 {
                     NodeType = node.NodeType,
                     Title = node.Title,
@@ -524,45 +557,93 @@ namespace NertyDb.ViewModels
                     Database = node.Database,
                     Connection = node.Connection,
                     Tag = node.Tag,
-                    IsExpanded = true,
-                    Parent = node.Parent
+                    IsExpanded = false, // CRITICAL: keep table collapsed so columns are not queried en masse
+                    ChildrenLoaded = node.ChildrenLoaded
+                };
+
+                if (!node.ChildrenLoaded)
+                {
+                    tableCopy.Children.Add(new SchemaNode { Title = "Carregando colunas...", Parent = tableCopy });
+                }
+                else
+                {
+                    foreach (var child in node.Children)
+                    {
+                        tableCopy.Children.Add(child);
+                    }
+                }
+
+                return tableCopy;
+            }
+
+            // 2. Container nodes (Connection, Database, FolderTables, FolderViews)
+            var matchedChildren = new List<SchemaNode>();
+            foreach (var child in node.Children)
+            {
+                if (token.IsCancellationRequested) return null;
+                var filteredChild = FilterNodeFast(child, term, token);
+                if (filteredChild != null)
+                {
+                    matchedChildren.Add(filteredChild);
+                }
+            }
+
+            bool selfMatches = IsFuzzyMatch(node.Title, term);
+
+            if (selfMatches || matchedChildren.Count > 0)
+            {
+                var containerCopy = new SchemaNode
+                {
+                    NodeType = node.NodeType,
+                    Title = node.Title,
+                    SubTitle = (node.NodeType == SchemaNodeType.FolderTables || node.NodeType == SchemaNodeType.FolderViews)
+                        ? $"({matchedChildren.Count})"
+                        : node.SubTitle,
+                    Schema = node.Schema,
+                    Database = node.Database,
+                    Connection = node.Connection,
+                    Tag = node.Tag,
+                    IsExpanded = true, // Expand container folders so matched tables are visible
+                    ChildrenLoaded = true
                 };
 
                 foreach (var mc in matchedChildren)
                 {
-                    mc.Parent = copy;
-                    copy.Children.Add(mc);
+                    mc.Parent = containerCopy;
+                    containerCopy.Children.Add(mc);
                 }
 
-                return copy;
+                return containerCopy;
             }
 
             return null;
         }
 
-        public static bool IsFuzzyMatch(string text, string pattern)
+        public static bool IsFuzzyMatch(string? text, string? pattern)
         {
             if (string.IsNullOrWhiteSpace(pattern)) return true;
             if (string.IsNullOrWhiteSpace(text)) return false;
 
-            text = text.ToLowerInvariant();
-            pattern = pattern.ToLowerInvariant();
+            // Direct case-insensitive substring match (fast path)
+            if (text.Contains(pattern, StringComparison.OrdinalIgnoreCase)) return true;
 
-            if (text.Contains(pattern)) return true;
+            // Subsequence match with zero memory allocations
+            ReadOnlySpan<char> textSpan = text.AsSpan();
+            ReadOnlySpan<char> patternSpan = pattern.AsSpan();
 
             int textIndex = 0;
             int patternIndex = 0;
 
-            while (textIndex < text.Length && patternIndex < pattern.Length)
+            while (textIndex < textSpan.Length && patternIndex < patternSpan.Length)
             {
-                if (text[textIndex] == pattern[patternIndex])
+                if (char.ToLowerInvariant(textSpan[textIndex]) == char.ToLowerInvariant(patternSpan[patternIndex]))
                 {
                     patternIndex++;
                 }
                 textIndex++;
             }
 
-            return patternIndex == pattern.Length;
+            return patternIndex == patternSpan.Length;
         }
     }
 }
