@@ -1,13 +1,13 @@
-# ⚡ NertyDb — Cliente de Banco de Dados Senior (Substituto do CBDS)
+# ⚡ NertyDb — Cliente de Banco de Dados Senior (Ferramenta Auxiliar de Consulta)
 
-[![Download NertyDb Portable](https://img.shields.io/badge/Download-NertyDb.exe_(Portable_v1.0.0)-blue?style=for-the-badge&logo=windows)](https://github.com/BrendoNyre/NertyDb/releases/download/v1.0.0/NertyDb.exe)
-[![GitHub Release](https://img.shields.io/github/v/release/BrendoNyre/NertyDb?style=for-the-badge&color=green)](https://github.com/BrendoNyre/NertyDb/releases/tag/v1.0.0)
+[![Download NertyDb Portable](https://img.shields.io/badge/Download-NertyDb.exe_(Portable_v1.1.0)-blue?style=for-the-badge&logo=windows)](https://github.com/BrendoNyre/NertyDb/releases/download/v1.1.0/NertyDb.exe)
+[![GitHub Release](https://img.shields.io/github/v/release/BrendoNyre/NertyDb?style=for-the-badge&color=green)](https://github.com/BrendoNyre/NertyDb/releases/tag/v1.1.0)
 
-> 🚀 **[Clique aqui para Baixar o Executável Direto (`NertyDb.exe` v1.0.0)](https://github.com/BrendoNyre/NertyDb/releases/download/v1.0.0/NertyDb.exe)** — *100% portable, executável único pronto para uso, sem instalador e sem dependências.*
+> 🚀 **[Clique aqui para Baixar o Executável Direto (`NertyDb.exe` v1.1.0)](https://github.com/BrendoNyre/NertyDb/releases/download/v1.1.0/NertyDb.exe)** — *100% portable, executável único pronto para uso, sem instalador e sem dependências.*
 
-O **NertyDb** é um cliente de banco de dados desktop **100% portable para Windows** (executável único `.exe`, sem instalador e sem necessidade de pré-instalar o .NET ou qualquer dependência externa no servidor do cliente), desenvolvido com foco nas rotinas de suporte e análise dos sistemas **Senior** (Gestão de Ponto, Controle de Ponto e Ronda, Acesso e HCM).
+O **NertyDb** é um cliente de banco de dados desktop **100% portable para Windows** (executável único `.exe`, sem instalador e sem necessidade de pré-instalar o .NET ou qualquer dependência externa no servidor do cliente), desenvolvido com foco nas rotinas de suporte, consulta e análise dos sistemas **Senior** (Gestão de Ponto, Controle de Ponto e Ronda, Acesso, HCM, ERP, etc.).
 
-Ele foi projetado para substituir o **CBDS** (nativo da Senior), superando todas as suas limitações arcaicas e trazendo a usabilidade, agilidade e ergonomia do **DBeaver** em um executável ultraleve e rápido.
+Ele foi projetado como uma **ferramenta auxiliar e complementar** aos sistemas da Senior (e ao CBDS), trazendo a usabilidade, agilidade e ergonomia do **DBeaver** aliadas à facilidade de logon SGU e edição direta na grade em um executável ultraleve e rápido.
 
 ---
 

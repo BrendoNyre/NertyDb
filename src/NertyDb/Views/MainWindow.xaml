@@ -209,7 +209,7 @@
                 <Border Background="{DynamicResource BgMainBrush}" Visibility="{Binding HasDocumentTabs, Converter={StaticResource InvBoolToVis}}">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
                         <TextBlock Text="⚡ NertyDb" FontWeight="Bold" FontSize="26" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" Margin="0,0,0,6" />
-                        <TextBlock Text="Cliente de Banco de Dados Senior (Substituto Moderno do CBDS)" FontSize="13" Foreground="{DynamicResource FgSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,24" />
+                        <TextBlock Text="Cliente de Banco de Dados Senior — Ferramenta Auxiliar de Consulta" FontSize="13" Foreground="{DynamicResource FgSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,24" />
 
                         <Border Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
                             <StackPanel>
@@ -231,7 +231,7 @@
                 <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource FgSecondaryBrush}" FontSize="11" DockPanel.Dock="Left" VerticalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                     <TextBlock Text="{Binding ServerVersion}" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" Margin="0,0,16,0" />
-                    <TextBlock Text="NertyDb v1.0 Portable" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" />
+                    <TextBlock Text="NertyDb v1.1 Portable" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" />
                 </StackPanel>
             </DockPanel>
         </Border>

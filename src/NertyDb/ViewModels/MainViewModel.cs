@@ -23,7 +23,7 @@ namespace NertyDb.ViewModels
         private ConnectionProfile? _activeConnection;
         private string _activeDatabase = "master";
         private object? _selectedTab;
-        private string _currentTheme = "Dark";
+        private string _currentTheme = "Light";
         private string _statusMessage = "Pronto para conectar";
         private string _serverVersion = string.Empty;
         private bool _autoCommit = true;
@@ -258,7 +258,7 @@ namespace NertyDb.ViewModels
 
             // Load initial theme from settings
             var savedSettings = _storageService.LoadSettings();
-            CurrentTheme = savedSettings.Theme ?? "Dark";
+            CurrentTheme = savedSettings.Theme ?? "Light";
         }
 
         public async Task ConnectToDatabaseAsync(ConnectionProfile profile, string database)
