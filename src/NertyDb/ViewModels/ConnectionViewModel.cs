@@ -476,57 +476,84 @@ namespace NertyDb.ViewModels
             catch { }
         }
 
+        private void SyncSeniorAliasToProfile()
+        {
+            if (SelectedProfile == null) return;
+            if (SelectedSeniorAlias != null)
+            {
+                SelectedProfile.SeniorAlias = SelectedSeniorAlias.Alias;
+                SelectedProfile.Server = SelectedSeniorAlias.Server;
+                SelectedProfile.Port = SelectedSeniorAlias.Port;
+                SelectedProfile.Database = SelectedSeniorAlias.DatabaseName;
+                SelectedProfile.DatabaseType = SelectedSeniorAlias.DatabaseType;
+                SelectedProfile.Username = SelectedSeniorAlias.Username;
+                if (!string.IsNullOrEmpty(SelectedSeniorAlias.PlainPassword))
+                {
+                    SelectedProfile.Password = SelectedSeniorAlias.PlainPassword;
+                }
+                SelectedDatabase = SelectedSeniorAlias.DatabaseName;
+            }
+        }
+
         private async Task ExecuteTestConnectionAsync()
         {
             if (SelectedProfile == null) return;
+            SyncSeniorAliasToProfile();
             IsTesting = true;
             HasTested = false;
-            TestResultMessage = $"Testando conexão com {SelectedProfile.DatabaseType}...";
+            TestResultMessage = $"Testando conexão com a base {SelectedProfile.SeniorAlias ?? SelectedProfile.Database}...";
 
             try
             {
                 var driver = DbDriverFactory.GetDriver(SelectedProfile);
                 var (success, msg, latency) = await driver.TestConnectionAsync(SelectedProfile);
                 
+                // Fallback attempt: if NC-PC13 / hostname had a network/logon issue, try 127.0.0.1
+                if (!success && (SelectedProfile.Server.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase) || SelectedProfile.Server.Equals("localhost", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var originalServer = SelectedProfile.Server;
+                    SelectedProfile.Server = "127.0.0.1";
+                    var fallbackRes = await driver.TestConnectionAsync(SelectedProfile);
+                    if (fallbackRes.Success)
+                    {
+                        success = true;
+                        msg = fallbackRes.Message;
+                        latency = fallbackRes.LatencyMs;
+                    }
+                    else
+                    {
+                        SelectedProfile.Server = originalServer;
+                    }
+                }
+
                 if (!success)
                 {
                     TestSuccess = false;
-                    TestResultMessage = $"❌ Falha na conexão com o banco: {msg}";
+                    TestResultMessage = $"❌ Falha na conexão com o banco ({SelectedProfile.Server}:{SelectedProfile.Port}):\r\n{msg}";
                     HasTested = true;
                     return;
                 }
 
-                // If SGU Authentication mode is enabled, test SGU user validation
-                if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
-                {
-                    TestResultMessage = $"Conexão física OK ({latency} ms). Validando usuário SGU '{SelectedProfile.SguUsername}'...";
-                    var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
-                        driver,
-                        SelectedProfile,
-                        SelectedDatabase,
-                        SelectedProfile.SguUsername,
-                        SelectedProfile.SguPassword);
+                // Validate SGU user
+                TestResultMessage = $"Conexão física OK ({latency} ms). Validando usuário SGU '{SelectedProfile.SguUsername}'...";
+                var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                    driver,
+                    SelectedProfile,
+                    SelectedDatabase,
+                    SelectedProfile.SguUsername,
+                    SelectedProfile.SguPassword);
 
-                    if (!sguResult.IsSuccess)
-                    {
-                        TestSuccess = false;
-                        TestResultMessage = $"⚠️ Conexão com banco OK ({latency} ms), mas o usuário SGU falhou:\r\n{sguResult.ErrorMessage}";
-                        HasTested = true;
-                        return;
-                    }
-
-                    TestSuccess = true;
-                    TestResultMessage = $"✅ Conexão e Autenticação SGU OK ({latency} ms)!\r\nUsuário: {sguResult.UserName} (Cód: {sguResult.UserCode}) • Grupo: {sguResult.GroupName}";
-                    HasTested = true;
-                }
-                else
+                if (!sguResult.IsSuccess)
                 {
-                    TestSuccess = true;
-                    TestResultMessage = $"✅ Conexão direta estabelecida com sucesso ({latency} ms)!";
+                    TestSuccess = false;
+                    TestResultMessage = $"⚠️ Conexão com banco OK ({latency} ms), mas o usuário SGU falhou:\r\n{sguResult.ErrorMessage}";
                     HasTested = true;
+                    return;
                 }
 
-                _ = ExecuteFetchDatabasesAsync();
+                TestSuccess = true;
+                TestResultMessage = $"✅ Conexão e Autenticação SGU OK ({latency} ms)!\r\nUsuário: {sguResult.UserName} (Cód: {sguResult.UserCode}) • Grupo: {sguResult.GroupName}";
+                HasTested = true;
             }
             catch (Exception ex)
             {
@@ -572,27 +599,56 @@ namespace NertyDb.ViewModels
         private async Task ExecuteConnectAsync()
         {
             if (SelectedProfile == null) return;
+            SyncSeniorAliasToProfile();
 
-            // Validate SGU user before connecting if in SGU mode
-            if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
+            IsTesting = true;
+            HasTested = false;
+            TestResultMessage = "Conectando e validando usuário SGU...";
+
+            var driver = DbDriverFactory.GetDriver(SelectedProfile);
+            
+            // Check connection (with local fallback if machine name resolution differs)
+            var (success, msg, latency) = await driver.TestConnectionAsync(SelectedProfile);
+            if (!success && (SelectedProfile.Server.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase) || SelectedProfile.Server.Equals("localhost", StringComparison.OrdinalIgnoreCase)))
             {
-                IsTesting = true;
-                var driver = DbDriverFactory.GetDriver(SelectedProfile);
-                var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
-                    driver,
-                    SelectedProfile,
-                    SelectedDatabase,
-                    SelectedProfile.SguUsername,
-                    SelectedProfile.SguPassword);
-                IsTesting = false;
-
-                if (!sguResult.IsSuccess)
+                var originalServer = SelectedProfile.Server;
+                SelectedProfile.Server = "127.0.0.1";
+                var fallbackRes = await driver.TestConnectionAsync(SelectedProfile);
+                if (fallbackRes.Success)
                 {
-                    TestSuccess = false;
-                    TestResultMessage = $"Não foi possível conectar: {sguResult.ErrorMessage}";
-                    HasTested = true;
-                    return;
+                    success = true;
+                    latency = fallbackRes.LatencyMs;
                 }
+                else
+                {
+                    SelectedProfile.Server = originalServer;
+                }
+            }
+
+            if (!success)
+            {
+                IsTesting = false;
+                TestSuccess = false;
+                TestResultMessage = $"Falha na conexão com o banco: {msg}";
+                HasTested = true;
+                return;
+            }
+
+            // Validate SGU user
+            var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                driver,
+                SelectedProfile,
+                SelectedDatabase,
+                SelectedProfile.SguUsername,
+                SelectedProfile.SguPassword);
+            IsTesting = false;
+
+            if (!sguResult.IsSuccess)
+            {
+                TestSuccess = false;
+                TestResultMessage = sguResult.ErrorMessage ?? "Erro de autenticação SGU.";
+                HasTested = true;
+                return;
             }
 
             SelectedProfile.UpdateEncryptedPassword();

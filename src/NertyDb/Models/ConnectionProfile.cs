@@ -197,7 +197,7 @@ namespace NertyDb.Models
             {
                 serverAddress = Server;
             }
-            else if (Port > 0 && Port != 1433)
+            else if (Port > 0)
             {
                 serverAddress = $"{Server},{Port}";
             }
