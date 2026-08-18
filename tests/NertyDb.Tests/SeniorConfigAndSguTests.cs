@@ -124,5 +124,26 @@ namespace NertyDb.Tests
             Assert.False(result.IsSuccess);
             Assert.Contains("Informe o usuário", result.ErrorMessage);
         }
+
+        [Fact]
+        public void SeniorCryptoService_CanDecryptDatabasePassword()
+        {
+            // Senior's actual encrypted password in senior.cfg
+            var encrypted = "XSn1fmF1w1Tqix5C";
+            var decrypted = SeniorCryptoService.Decrypt(encrypted, SeniorCryptoService.DbKey);
+
+            Assert.Equal("12345678", decrypted);
+        }
+
+        [Fact]
+        public void SeniorCryptoService_EncryptDecryptRoundtrip()
+        {
+            var original = "SenhaSenior@2026";
+            var enc = SeniorCryptoService.Encrypt(original, SeniorCryptoService.DbKey);
+            Assert.NotNull(enc);
+
+            var dec = SeniorCryptoService.Decrypt(enc, SeniorCryptoService.DbKey);
+            Assert.Equal(original, dec);
+        }
     }
 }

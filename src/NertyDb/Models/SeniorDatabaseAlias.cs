@@ -13,6 +13,7 @@ namespace NertyDb.Models
         public string DatabaseName { get; set; } = string.Empty;
         public string Username { get; set; } = "sa";
         public string? EncryptedPassword { get; set; }
+        public string? PlainPassword { get; set; }
         public string? TbsFile { get; set; }
         public bool IsDefault { get; set; }
 

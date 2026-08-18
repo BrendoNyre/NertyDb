@@ -56,6 +56,12 @@ namespace NertyDb.ViewModels
                     SelectedProfile.Port = value.Port;
                     SelectedProfile.Database = value.DatabaseName;
                     SelectedProfile.DatabaseType = value.DatabaseType;
+                    SelectedProfile.Username = value.Username;
+                    if (!string.IsNullOrEmpty(value.PlainPassword))
+                    {
+                        SelectedProfile.Password = value.PlainPassword;
+                        OnPropertyChanged(nameof(CurrentPassword));
+                    }
                     SelectedDatabase = value.DatabaseName;
                     
                     OnPropertyChanged(nameof(SelectedDatabaseType));
@@ -425,6 +431,7 @@ namespace NertyDb.ViewModels
                 Port = defaultAlias?.Port ?? 1433,
                 Database = defaultAlias?.DatabaseName ?? "senior",
                 Username = defaultAlias?.Username ?? "sa",
+                Password = defaultAlias?.PlainPassword,
                 SguUsername = "senior"
             };
         }

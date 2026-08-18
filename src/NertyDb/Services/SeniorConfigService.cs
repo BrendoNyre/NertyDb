@@ -77,6 +77,7 @@ namespace NertyDb.Services
                                      ?? aliasName;
                         var username = node.SelectSingleNode("username")?.InnerText?.Trim() ?? "sa";
                         var password = node.SelectSingleNode("password")?.InnerText?.Trim();
+                        var plainPwd = SeniorCryptoService.Decrypt(password, SeniorCryptoService.DbKey) ?? password;
                         var tbs = node.SelectSingleNode("tbs/filename")?.InnerText?.Trim();
                         var desc = node.SelectSingleNode("description")?.InnerText?.Trim() ?? string.Empty;
 
@@ -99,6 +100,7 @@ namespace NertyDb.Services
                             DatabaseName = dbName,
                             Username = username,
                             EncryptedPassword = password,
+                            PlainPassword = plainPwd,
                             TbsFile = tbs,
                             IsDefault = string.Equals(aliasName, defaultAlias, StringComparison.OrdinalIgnoreCase)
                         };
