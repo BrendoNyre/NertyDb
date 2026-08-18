@@ -116,7 +116,9 @@ namespace NertyDb.ViewModels
         public bool HasActiveConnection => ActiveConnection != null;
 
         public string ActiveConnectionSummary => ActiveConnection != null 
-            ? $"{ActiveConnection.Name} ({ActiveConnection.DatabaseType}) • {ActiveConnection.Server}"
+            ? (ActiveConnection.SeniorAuthMode == SeniorAuthMode.SeniorSgu 
+                ? $"Senior SGU: {ActiveConnection.SguUsername} • {ActiveConnection.Name} ({ActiveConnection.DatabaseType}) • {ActiveConnection.Server}/{ActiveDatabase}"
+                : $"{ActiveConnection.Name} ({ActiveConnection.DatabaseType}) • {ActiveConnection.Server}/{ActiveDatabase}")
             : "Nenhuma conexão ativa";
 
         public ICommand OpenConnectionsDialogCommand { get; }
@@ -271,9 +273,32 @@ namespace NertyDb.ViewModels
                 var (success, msg, latency) = await driver.TestConnectionAsync(profile);
                 if (!success)
                 {
-                    StatusMessage = $"Erro na conexão: {msg}";
+                    StatusMessage = $"Erro na conexão com o banco: {msg}";
                     MessageBox.Show(msg, "Erro de Conexão", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
+                }
+
+                if (profile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
+                {
+                    var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                        driver,
+                        profile,
+                        ActiveDatabase,
+                        profile.SguUsername,
+                        profile.SguPassword);
+
+                    if (!sguResult.IsSuccess)
+                    {
+                        StatusMessage = $"Falha na autenticação SGU: {sguResult.ErrorMessage}";
+                        MessageBox.Show(sguResult.ErrorMessage, "Autenticação Senior (SGU)", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    StatusMessage = $"Conectado com sucesso ({latency} ms) • SGU: {sguResult.UserName} ({sguResult.GroupName})";
+                }
+                else
+                {
+                    StatusMessage = $"Conectado com sucesso ({latency} ms)";
                 }
 
                 // Auto open a SQL query tab immediately so user has zero wait time

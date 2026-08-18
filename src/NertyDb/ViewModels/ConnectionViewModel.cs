@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -13,6 +14,7 @@ namespace NertyDb.ViewModels
     public class ConnectionViewModel : ObservableObject
     {
         private readonly StorageService _storageService;
+        private readonly SeniorConfigService _seniorConfigService;
         private readonly Action<ConnectionProfile, string> _onConnect;
 
         private ConnectionProfile _selectedProfile;
@@ -22,8 +24,11 @@ namespace NertyDb.ViewModels
         private bool _hasTested;
         private string _selectedDatabase = string.Empty;
         private bool _showPassword;
+        private bool _showSguPassword;
         private ObservableCollection<string> _availableDatabases = new();
         private ObservableCollection<string> _detectedServers = new();
+        private ObservableCollection<SeniorDatabaseAlias> _seniorAliases = new();
+        private SeniorDatabaseAlias? _selectedSeniorAlias;
 
         public ObservableCollection<ConnectionProfile> SavedProfiles { get; } = new();
 
@@ -32,6 +37,39 @@ namespace NertyDb.ViewModels
             DatabaseType.SqlServer,
             DatabaseType.Oracle
         };
+
+        public ObservableCollection<SeniorDatabaseAlias> SeniorAliases
+        {
+            get => _seniorAliases;
+            set => SetProperty(ref _seniorAliases, value);
+        }
+
+        public SeniorDatabaseAlias? SelectedSeniorAlias
+        {
+            get => _selectedSeniorAlias;
+            set
+            {
+                if (SetProperty(ref _selectedSeniorAlias, value) && value != null && SelectedProfile != null)
+                {
+                    SelectedProfile.SeniorAlias = value.Alias;
+                    SelectedProfile.Server = value.Server;
+                    SelectedProfile.Port = value.Port;
+                    SelectedProfile.Database = value.DatabaseName;
+                    SelectedProfile.DatabaseType = value.DatabaseType;
+                    SelectedDatabase = value.DatabaseName;
+                    
+                    OnPropertyChanged(nameof(SelectedDatabaseType));
+                    OnPropertyChanged(nameof(IsSqlServer));
+                    OnPropertyChanged(nameof(IsOracle));
+                }
+            }
+        }
+
+        public bool IsSeniorInstalled => _seniorConfigService.IsSeniorInstalled;
+        public string SeniorConfigPath => _seniorConfigService.DetectedConfigPath ?? "Não localizado (C:\\Senior\\senior.cfg)";
+        public string SeniorStatusSummary => IsSeniorInstalled
+            ? $"✅ Configuração Senior carregada ({_seniorAliases.Count} bases encontradas em {_seniorConfigService.DetectedConfigPath})"
+            : "⚠️ Instalação do Senior não encontrada em C:\\Senior (Modo Standalone / Remoto)";
 
         public ObservableCollection<string> DetectedServers
         {
@@ -49,12 +87,51 @@ namespace NertyDb.ViewModels
                     HasTested = false;
                     TestResultMessage = string.Empty;
                     SelectedDatabase = _selectedProfile?.Database ?? "master";
+                    
+                    // Match senior alias if applicable
+                    if (!string.IsNullOrEmpty(_selectedProfile?.SeniorAlias))
+                    {
+                        _selectedSeniorAlias = SeniorAliases.FirstOrDefault(a => a.Alias.Equals(_selectedProfile.SeniorAlias, StringComparison.OrdinalIgnoreCase));
+                        OnPropertyChanged(nameof(SelectedSeniorAlias));
+                    }
+
+                    OnPropertyChanged(nameof(IsSeniorAuth));
+                    OnPropertyChanged(nameof(IsDirectDbAuth));
                     OnPropertyChanged(nameof(IsWindowsAuth));
                     OnPropertyChanged(nameof(IsSqlAuth));
                     OnPropertyChanged(nameof(IsSqlServer));
                     OnPropertyChanged(nameof(IsOracle));
                     OnPropertyChanged(nameof(SelectedDatabaseType));
                     OnPropertyChanged(nameof(CurrentPassword));
+                    OnPropertyChanged(nameof(CurrentSguPassword));
+                }
+            }
+        }
+
+        public bool IsSeniorAuth
+        {
+            get => SelectedProfile?.SeniorAuthMode == SeniorAuthMode.SeniorSgu;
+            set
+            {
+                if (SelectedProfile != null && value)
+                {
+                    SelectedProfile.SeniorAuthMode = SeniorAuthMode.SeniorSgu;
+                    OnPropertyChanged(nameof(IsSeniorAuth));
+                    OnPropertyChanged(nameof(IsDirectDbAuth));
+                }
+            }
+        }
+
+        public bool IsDirectDbAuth
+        {
+            get => SelectedProfile?.SeniorAuthMode == SeniorAuthMode.DirectDatabase;
+            set
+            {
+                if (SelectedProfile != null && value)
+                {
+                    SelectedProfile.SeniorAuthMode = SeniorAuthMode.DirectDatabase;
+                    OnPropertyChanged(nameof(IsSeniorAuth));
+                    OnPropertyChanged(nameof(IsDirectDbAuth));
                 }
             }
         }
@@ -77,7 +154,7 @@ namespace NertyDb.ViewModels
                     {
                         if (SelectedProfile.Port == 1521 || SelectedProfile.Port == 0) SelectedProfile.Port = 1433;
                         if (SelectedProfile.Username == "SYSTEM") SelectedProfile.Username = "sa";
-                        if (string.IsNullOrWhiteSpace(SelectedProfile.Database)) SelectedProfile.Database = "master";
+                        if (string.IsNullOrWhiteSpace(SelectedProfile.Database)) SelectedProfile.Database = "senior";
                     }
                     OnPropertyChanged(nameof(SelectedDatabaseType));
                     OnPropertyChanged(nameof(IsSqlServer));
@@ -101,6 +178,18 @@ namespace NertyDb.ViewModels
             }
         }
 
+        public bool ShowSguPassword
+        {
+            get => _showSguPassword;
+            set
+            {
+                if (SetProperty(ref _showSguPassword, value))
+                {
+                    OnPropertyChanged(nameof(CurrentSguPassword));
+                }
+            }
+        }
+
         public string CurrentPassword
         {
             get => SelectedProfile?.Password ?? string.Empty;
@@ -110,6 +199,19 @@ namespace NertyDb.ViewModels
                 {
                     SelectedProfile.Password = value;
                     OnPropertyChanged(nameof(CurrentPassword));
+                }
+            }
+        }
+
+        public string CurrentSguPassword
+        {
+            get => SelectedProfile?.SguPassword ?? string.Empty;
+            set
+            {
+                if (SelectedProfile != null)
+                {
+                    SelectedProfile.SguPassword = value;
+                    OnPropertyChanged(nameof(CurrentSguPassword));
                 }
             }
         }
@@ -186,6 +288,8 @@ namespace NertyDb.ViewModels
         public ICommand SaveProfilesCommand { get; }
         public ICommand FetchDatabasesCommand { get; }
         public ICommand DetectServersCommand { get; }
+        public ICommand RefreshSeniorConfigCommand { get; }
+        public ICommand BrowseSeniorConfigCommand { get; }
 
         public event EventHandler? RequestClose;
 
@@ -195,7 +299,10 @@ namespace NertyDb.ViewModels
             Action<ConnectionProfile, string> onConnect)
         {
             _storageService = storageService;
+            _seniorConfigService = new SeniorConfigService();
             _onConnect = onConnect;
+
+            LoadSeniorAliases();
 
             var loaded = _storageService.LoadConnections();
             foreach (var p in loaded)
@@ -203,25 +310,39 @@ namespace NertyDb.ViewModels
                 SavedProfiles.Add(p);
             }
 
-            _selectedProfile = SavedProfiles.FirstOrDefault() ?? new ConnectionProfile();
+            if (SavedProfiles.Count == 0)
+            {
+                var defaultProfile = CreateDefaultProfile();
+                SavedProfiles.Add(defaultProfile);
+            }
+
+            _selectedProfile = SavedProfiles.FirstOrDefault() ?? CreateDefaultProfile();
             _selectedDatabase = _selectedProfile.Database;
+
+            if (!string.IsNullOrEmpty(_selectedProfile.SeniorAlias))
+            {
+                _selectedSeniorAlias = SeniorAliases.FirstOrDefault(a => a.Alias.Equals(_selectedProfile.SeniorAlias, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (SeniorAliases.Count > 0)
+            {
+                _selectedSeniorAlias = SeniorAliases.FirstOrDefault(a => a.IsDefault) ?? SeniorAliases.First();
+                _selectedProfile.SeniorAlias = _selectedSeniorAlias.Alias;
+                _selectedProfile.Server = _selectedSeniorAlias.Server;
+                _selectedProfile.Port = _selectedSeniorAlias.Port;
+                _selectedProfile.Database = _selectedSeniorAlias.DatabaseName;
+                _selectedProfile.DatabaseType = _selectedSeniorAlias.DatabaseType;
+                _selectedDatabase = _selectedSeniorAlias.DatabaseName;
+            }
 
             DetectLocalServers();
 
             TestConnectionCommand = new AsyncRelayCommand(ExecuteTestConnectionAsync, () => !IsTesting && SelectedProfile != null);
-            ConnectCommand = new RelayCommand(ExecuteConnect, () => SelectedProfile != null && !IsTesting);
+            ConnectCommand = new AsyncRelayCommand(ExecuteConnectAsync, () => SelectedProfile != null && !IsTesting);
             
             NewProfileCommand = new RelayCommand(() =>
             {
-                var newP = new ConnectionProfile
-                {
-                    Name = $"Conexão {SavedProfiles.Count + 1}",
-                    DatabaseType = DatabaseType.SqlServer,
-                    Server = DetectedServers.FirstOrDefault() ?? ".\\SQLEXPRESS",
-                    Port = 1433,
-                    Database = "senior",
-                    Username = "sa"
-                };
+                var newP = CreateDefaultProfile();
+                newP.Name = $"Conexão {SavedProfiles.Count + 1}";
                 SavedProfiles.Add(newP);
                 SelectedProfile = newP;
                 _storageService.SaveConnections(SavedProfiles.ToList());
@@ -255,6 +376,7 @@ namespace NertyDb.ViewModels
                 if (SelectedProfile != null)
                 {
                     SelectedProfile.UpdateEncryptedPassword();
+                    SelectedProfile.UpdateEncryptedSguPassword();
                 }
                 _storageService.SaveConnections(SavedProfiles.ToList());
                 TestResultMessage = "Perfis salvos com sucesso!";
@@ -264,6 +386,59 @@ namespace NertyDb.ViewModels
 
             FetchDatabasesCommand = new AsyncRelayCommand(ExecuteFetchDatabasesAsync, () => !IsTesting && SelectedProfile != null);
             DetectServersCommand = new RelayCommand(DetectLocalServers);
+            RefreshSeniorConfigCommand = new RelayCommand(LoadSeniorAliases);
+            
+            BrowseSeniorConfigCommand = new RelayCommand(() =>
+            {
+                var dlg = new OpenFileDialog
+                {
+                    Title = "Selecionar arquivo de configuração Senior (senior.cfg)",
+                    Filter = "Configuração Senior (senior.cfg)|senior.cfg|Todos os arquivos (*.*)|*.*",
+                    CheckFileExists = true
+                };
+                if (dlg.ShowDialog() == true)
+                {
+                    var customService = new SeniorConfigService(dlg.FileName);
+                    var aliases = customService.LoadAliases();
+                    if (aliases.Count > 0)
+                    {
+                        SeniorAliases.Clear();
+                        foreach (var a in aliases) SeniorAliases.Add(a);
+                        SelectedSeniorAlias = SeniorAliases.FirstOrDefault(a => a.IsDefault) ?? SeniorAliases.First();
+                        OnPropertyChanged(nameof(SeniorStatusSummary));
+                        OnPropertyChanged(nameof(IsSeniorInstalled));
+                    }
+                }
+            });
+        }
+
+        private ConnectionProfile CreateDefaultProfile()
+        {
+            var defaultAlias = SeniorAliases.FirstOrDefault(a => a.IsDefault) ?? SeniorAliases.FirstOrDefault();
+            return new ConnectionProfile
+            {
+                Name = defaultAlias != null ? $"Senior ({defaultAlias.Alias})" : "Senior Vetorh",
+                SeniorAuthMode = SeniorAuthMode.SeniorSgu,
+                SeniorAlias = defaultAlias?.Alias ?? "vetorh",
+                DatabaseType = defaultAlias?.DatabaseType ?? DatabaseType.SqlServer,
+                Server = defaultAlias?.Server ?? (DetectedServers.FirstOrDefault() ?? "localhost"),
+                Port = defaultAlias?.Port ?? 1433,
+                Database = defaultAlias?.DatabaseName ?? "senior",
+                Username = defaultAlias?.Username ?? "sa",
+                SguUsername = "senior"
+            };
+        }
+
+        public void LoadSeniorAliases()
+        {
+            SeniorAliases.Clear();
+            var aliases = _seniorConfigService.LoadAliases();
+            foreach (var a in aliases)
+            {
+                SeniorAliases.Add(a);
+            }
+            OnPropertyChanged(nameof(SeniorStatusSummary));
+            OnPropertyChanged(nameof(IsSeniorInstalled));
         }
 
         public void DetectLocalServers()
@@ -305,19 +480,51 @@ namespace NertyDb.ViewModels
             {
                 var driver = DbDriverFactory.GetDriver(SelectedProfile);
                 var (success, msg, latency) = await driver.TestConnectionAsync(SelectedProfile);
-                TestSuccess = success;
-                TestResultMessage = msg;
-                HasTested = true;
-
-                if (success)
+                
+                if (!success)
                 {
-                    _ = ExecuteFetchDatabasesAsync();
+                    TestSuccess = false;
+                    TestResultMessage = $"❌ Falha na conexão com o banco: {msg}";
+                    HasTested = true;
+                    return;
                 }
+
+                // If SGU Authentication mode is enabled, test SGU user validation
+                if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
+                {
+                    TestResultMessage = $"Conexão física OK ({latency} ms). Validando usuário SGU '{SelectedProfile.SguUsername}'...";
+                    var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                        driver,
+                        SelectedProfile,
+                        SelectedDatabase,
+                        SelectedProfile.SguUsername,
+                        SelectedProfile.SguPassword);
+
+                    if (!sguResult.IsSuccess)
+                    {
+                        TestSuccess = false;
+                        TestResultMessage = $"⚠️ Conexão com banco OK ({latency} ms), mas o usuário SGU falhou:\r\n{sguResult.ErrorMessage}";
+                        HasTested = true;
+                        return;
+                    }
+
+                    TestSuccess = true;
+                    TestResultMessage = $"✅ Conexão e Autenticação SGU OK ({latency} ms)!\r\nUsuário: {sguResult.UserName} (Cód: {sguResult.UserCode}) • Grupo: {sguResult.GroupName}";
+                    HasTested = true;
+                }
+                else
+                {
+                    TestSuccess = true;
+                    TestResultMessage = $"✅ Conexão direta estabelecida com sucesso ({latency} ms)!";
+                    HasTested = true;
+                }
+
+                _ = ExecuteFetchDatabasesAsync();
             }
             catch (Exception ex)
             {
                 TestSuccess = false;
-                TestResultMessage = $"Erro: {ex.Message}";
+                TestResultMessage = $"❌ Erro: {ex.Message}";
                 HasTested = true;
             }
             finally
@@ -355,12 +562,40 @@ namespace NertyDb.ViewModels
             catch { }
         }
 
-        private void ExecuteConnect()
+        private async Task ExecuteConnectAsync()
         {
             if (SelectedProfile == null) return;
+
+            // Validate SGU user before connecting if in SGU mode
+            if (SelectedProfile.SeniorAuthMode == SeniorAuthMode.SeniorSgu)
+            {
+                IsTesting = true;
+                var driver = DbDriverFactory.GetDriver(SelectedProfile);
+                var sguResult = await SguAuthenticationService.ValidateSguUserAsync(
+                    driver,
+                    SelectedProfile,
+                    SelectedDatabase,
+                    SelectedProfile.SguUsername,
+                    SelectedProfile.SguPassword);
+                IsTesting = false;
+
+                if (!sguResult.IsSuccess)
+                {
+                    TestSuccess = false;
+                    TestResultMessage = $"Não foi possível conectar: {sguResult.ErrorMessage}";
+                    HasTested = true;
+                    return;
+                }
+            }
+
             SelectedProfile.UpdateEncryptedPassword();
+            SelectedProfile.UpdateEncryptedSguPassword();
             _storageService.SaveConnections(SavedProfiles.ToList());
-            var db = SelectedProfile.DatabaseType == DatabaseType.Oracle ? (SelectedProfile.ServiceName ?? SelectedProfile.Database) : SelectedDatabase;
+            
+            var db = SelectedProfile.DatabaseType == DatabaseType.Oracle 
+                ? (SelectedProfile.ServiceName ?? SelectedProfile.Database) 
+                : SelectedDatabase;
+
             _onConnect(SelectedProfile, db);
             RequestClose?.Invoke(this, EventArgs.Empty);
         }
