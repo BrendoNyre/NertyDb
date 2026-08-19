@@ -114,6 +114,7 @@
                       LoadingRow="MainDataGrid_LoadingRow"
                       Sorting="MainDataGrid_Sorting"
                       SelectedCellsChanged="MainDataGrid_SelectedCellsChanged"
+                      PreviewKeyDown="MainDataGrid_PreviewKeyDown"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
                       VirtualizingPanel.IsVirtualizing="True"

@@ -70,7 +70,7 @@ namespace NertyDb.Services
                           AND ROWNUM = 1";
                 }
 
-                var res = await driver.ExecuteQueryAsync(profile, database, queryR910, timeoutSeconds: 10, cancellationToken);
+                var res = await driver.ExecuteQueryAsync(profile, database, queryR910, timeoutSeconds: 10, cancellationToken: cancellationToken);
                 
                 int codUsu = 0;
                 string nomUsu = cleanUser;
@@ -115,7 +115,7 @@ namespace NertyDb.Services
                             AND ROWNUM = 1";
                     }
 
-                    var res999 = await driver.ExecuteQueryAsync(profile, database, queryR999, timeoutSeconds: 10, cancellationToken);
+                    var res999 = await driver.ExecuteQueryAsync(profile, database, queryR999, timeoutSeconds: 10, cancellationToken: cancellationToken);
                     if (!res999.HasError && res999.Tables.Count > 0 && res999.Tables[0].Rows.Count > 0)
                     {
                         var row = res999.Tables[0].Rows[0];
@@ -154,7 +154,7 @@ namespace NertyDb.Services
                         ORDER BY pdt.DATSEQ";
                 }
 
-                var resPdt = await driver.ExecuteQueryAsync(profile, database, queryPdt, timeoutSeconds: 10, cancellationToken);
+                var resPdt = await driver.ExecuteQueryAsync(profile, database, queryPdt, timeoutSeconds: 10, cancellationToken: cancellationToken);
                 if (!resPdt.HasError && resPdt.Tables.Count > 0 && resPdt.Tables[0].Rows.Count > 0)
                 {
                     var dataStrings = new List<string>();

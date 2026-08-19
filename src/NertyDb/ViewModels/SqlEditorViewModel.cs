@@ -180,6 +180,14 @@ namespace NertyDb.ViewModels
             }
         }
 
+        private int _pageSize = 200;
+
+        public int PageSize
+        {
+            get => _pageSize;
+            set => SetProperty(ref _pageSize, value);
+        }
+
         public async Task ExecuteSqlAsync(string sql)
         {
             if (string.IsNullOrWhiteSpace(sql)) return;
@@ -195,19 +203,19 @@ namespace NertyDb.ViewModels
 
             try
             {
-                var result = await _driver.ExecuteQueryAsync(Connection, Database, sql, timeoutSeconds: 30, cancellationToken: _cts.Token);
+                var result = await _driver.ExecuteQueryAsync(Connection, Database, sql, timeoutSeconds: 30, maxRows: PageSize, cancellationToken: _cts.Token);
                 sw.Stop();
 
                 LastDurationMs = result.DurationMs;
                 TotalRowsAffected = result.TotalRowsAffected;
 
-                var detectedTable = ExtractPrimaryTableName(sql);
+                var tableInfo = ExtractTableInfo(sql);
 
                 // Add result tables as editable SqlResultTabViewModel
                 for (int i = 0; i < result.Tables.Count; i++)
                 {
                     var dt = result.Tables[i];
-                    var title = result.Tables.Count > 1 ? $"Resultado {i + 1}" : (string.IsNullOrEmpty(detectedTable) ? "Resultado 1" : detectedTable);
+                    var title = result.Tables.Count > 1 ? $"Resultado {i + 1}" : (string.IsNullOrEmpty(tableInfo.Table) ? "Resultado 1" : tableInfo.Table);
                     
                     var tabVm = new SqlResultTabViewModel(
                         dt,
@@ -218,9 +226,13 @@ namespace NertyDb.ViewModels
                         _exportService,
                         _openPendingChangesDialog,
                         _openExportDialog,
-                        sourceTable: detectedTable,
-                        sourceSchema: "dbo",
-                        executedSql: sql);
+                        sourceTable: tableInfo.Table,
+                        sourceSchema: tableInfo.Schema,
+                        executedSql: sql,
+                        isReadOnly: !tableInfo.IsSingleTable,
+                        isReadOnlyReason: tableInfo.ReadOnlyReason,
+                        pageSize: PageSize,
+                        durationMs: result.DurationMs);
 
                     ResultTabs.Add(tabVm);
                 }
@@ -296,14 +308,31 @@ namespace NertyDb.ViewModels
             }
         }
 
-        private static string? ExtractPrimaryTableName(string sql)
+        private static (string Schema, string Table, bool IsSingleTable, string ReadOnlyReason) ExtractTableInfo(string sql)
         {
+            if (string.IsNullOrWhiteSpace(sql))
+                return ("dbo", "", false, "SQL vazio");
+
+            // Check for JOIN, GROUP BY, UNION, or aggregate functions
+            bool hasJoin = Regex.IsMatch(sql, @"\b(?:INNER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\b", RegexOptions.IgnoreCase);
+            bool hasGroupBy = Regex.IsMatch(sql, @"\bGROUP\s+BY\b", RegexOptions.IgnoreCase);
+            bool hasUnion = Regex.IsMatch(sql, @"\bUNION\b", RegexOptions.IgnoreCase);
+            bool hasAggregates = Regex.IsMatch(sql, @"\b(?:COUNT|SUM|AVG|MIN|MAX)\s*\(", RegexOptions.IgnoreCase);
+
+            if (hasJoin) return ("dbo", "", false, "Consulta possui cláusula JOIN");
+            if (hasGroupBy) return ("dbo", "", false, "Consulta possui agrupamento (GROUP BY)");
+            if (hasUnion) return ("dbo", "", false, "Consulta possui união (UNION)");
+            if (hasAggregates) return ("dbo", "", false, "Consulta possui funções agregadas");
+
             var match = Regex.Match(sql, @"\bFROM\s+(?:\[?(\w+)\]?\.)?\[?(\w+)\]?", RegexOptions.IgnoreCase);
             if (match.Success)
             {
-                return match.Groups[2].Value;
+                var schema = match.Groups[1].Success ? match.Groups[1].Value : "dbo";
+                var table = match.Groups[2].Value;
+                return (schema, table, true, string.Empty);
             }
-            return null;
+
+            return ("dbo", "", false, "Não foi possível determinar a tabela de origem");
         }
 
         private static string FormatSqlString(string sql)

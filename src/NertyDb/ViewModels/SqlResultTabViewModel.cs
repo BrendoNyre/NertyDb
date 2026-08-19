@@ -1,9 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Data;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using System.Windows.Input;
 using NertyDb.Data;
 using NertyDb.Models;
@@ -26,6 +29,10 @@ namespace NertyDb.ViewModels
         private string _title = "Resultado";
         private string _schema = "dbo";
         private string _tableName = string.Empty;
+        private bool _isReadOnly;
+        private string _isReadOnlyReason = string.Empty;
+        private long _durationMs;
+        private DateTime _executionTime = DateTime.Now;
 
         // Row change tracking
         private readonly Dictionary<int, Dictionary<string, object?>> _originalRowValues = new();
@@ -34,9 +41,11 @@ namespace NertyDb.ViewModels
         public HashSet<int> DeletedRowIndices { get; } = new();
         public ObservableCollection<PendingChange> PendingChanges { get; } = new();
         public List<string> PrimaryKeyColumns { get; set; } = new();
+        public HashSet<string> IdentityColumns { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public SelectionStatsViewModel SelectionStats { get; } = new();
 
         public event EventHandler? VisualChangesUpdated;
+        public event EventHandler<int>? RowCreated;
 
         public string Title
         {
@@ -67,6 +76,72 @@ namespace NertyDb.ViewModels
         public bool HasPrimaryKey => PrimaryKeyColumns.Count > 0;
         public string SourceTableSummary => HasIdentifiedTable ? $"{Schema}.{TableName}" : "(Resultado de Consulta)";
 
+        public bool IsReadOnly
+        {
+            get => _isReadOnly;
+            set
+            {
+                if (SetProperty(ref _isReadOnly, value))
+                {
+                    OnPropertyChanged(nameof(ReadOnlyBadgeText));
+                    OnPropertyChanged(nameof(ReadOnlyBadgeColor));
+                }
+            }
+        }
+
+        public string IsReadOnlyReason
+        {
+            get => _isReadOnlyReason;
+            set => SetProperty(ref _isReadOnlyReason, value);
+        }
+
+        public string ReadOnlyBadgeText
+        {
+            get
+            {
+                if (IsReadOnly) return "🔒 Somente Leitura (Query Complexa / Agregação)";
+                if (HasIdentifiedTable && HasPrimaryKey) return "✏️ Gravável";
+                if (HasIdentifiedTable && !HasPrimaryKey) return "⚠️ Sem PK (Somente Leitura)";
+                return "🔒 Somente Leitura";
+            }
+        }
+
+        public string ReadOnlyBadgeColor => (IsReadOnly || !HasPrimaryKey) ? "#EF4444" : "#10B981";
+
+        public long DurationMs
+        {
+            get => _durationMs;
+            set
+            {
+                if (SetProperty(ref _durationMs, value))
+                {
+                    OnPropertyChanged(nameof(ExecutionStatusText));
+                }
+            }
+        }
+
+        public DateTime ExecutionTime
+        {
+            get => _executionTime;
+            set
+            {
+                if (SetProperty(ref _executionTime, value))
+                {
+                    OnPropertyChanged(nameof(ExecutionStatusText));
+                }
+            }
+        }
+
+        public string ExecutionStatusText
+        {
+            get
+            {
+                var rows = Data != null ? Data.Rows.Count : 0;
+                var durationSec = DurationMs / 1000.0;
+                return $"{rows:N0} linha(s) recuperada(s) - {durationSec:F3}s, em {ExecutionTime:dd/MM/yyyy às HH:mm:ss}";
+            }
+        }
+
         public DataTable Data
         {
             get => _data;
@@ -78,6 +153,8 @@ namespace NertyDb.ViewModels
                     InitializeRowTracking();
                     OnPropertyChanged(nameof(RowCount));
                     OnPropertyChanged(nameof(Summary));
+                    OnPropertyChanged(nameof(ExecutionStatusText));
+                    OnPropertyChanged(nameof(PaginationSummary));
                 }
             }
         }
@@ -100,8 +177,8 @@ namespace NertyDb.ViewModels
             }
         }
 
-        public int RowCount => Data.Rows.Count;
-        public string Summary => $"{Data.Rows.Count:N0} linha(s), {Data.Columns.Count} coluna(s)";
+        public int RowCount => Data?.Rows.Count ?? 0;
+        public string Summary => $"{RowCount:N0} linha(s), {Data?.Columns.Count ?? 0} coluna(s)";
 
         public int TotalPendingCount => PendingChanges.Count;
         public bool HasPendingChanges => TotalPendingCount > 0;
@@ -109,6 +186,7 @@ namespace NertyDb.ViewModels
 
         private string _executedSql = string.Empty;
         private int _pageSize = 200;
+        private int _currentPage = 1;
         private bool _isRefreshing;
 
         public string ExecutedSql
@@ -131,16 +209,31 @@ namespace NertyDb.ViewModels
                 if (SetProperty(ref _pageSize, value))
                 {
                     OnPropertyChanged(nameof(PaginationSummary));
+                    OnPropertyChanged(nameof(TotalPages));
                 }
             }
         }
+
+        public int CurrentPage
+        {
+            get => _currentPage;
+            set
+            {
+                if (SetProperty(ref _currentPage, value))
+                {
+                    OnPropertyChanged(nameof(PaginationSummary));
+                }
+            }
+        }
+
+        public int TotalPages => PageSize > 0 && RowCount > 0 ? (int)Math.Max(1, Math.Ceiling((double)RowCount / PageSize)) : 1;
 
         public string PaginationSummary
         {
             get
             {
                 if (Data == null || Data.Rows.Count == 0) return "0 linhas";
-                return $"{Data.Rows.Count:N0} linha(s) carregada(s)";
+                return $"{Data.Rows.Count:N0} linha(s)";
             }
         }
 
@@ -151,6 +244,11 @@ namespace NertyDb.ViewModels
         public ICommand CommitChangesCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand ExportCommand { get; }
+
+        public ICommand FirstPageCommand { get; }
+        public ICommand PrevPageCommand { get; }
+        public ICommand NextPageCommand { get; }
+        public ICommand LastPageCommand { get; }
 
         public SqlResultTabViewModel(
             DataTable data,
@@ -163,7 +261,11 @@ namespace NertyDb.ViewModels
             Action<ExportViewModel> openExportDialog,
             string? sourceTable = null,
             string? sourceSchema = null,
-            string? executedSql = null)
+            string? executedSql = null,
+            bool isReadOnly = false,
+            string isReadOnlyReason = "",
+            int pageSize = 200,
+            long durationMs = 0)
         {
             _connection = connection;
             _database = database;
@@ -175,8 +277,13 @@ namespace NertyDb.ViewModels
             _tableName = sourceTable ?? string.Empty;
             _schema = sourceSchema ?? "dbo";
             _executedSql = executedSql ?? string.Empty;
+            _isReadOnly = isReadOnly;
+            _isReadOnlyReason = isReadOnlyReason;
+            _pageSize = pageSize;
+            _durationMs = durationMs;
+            _executionTime = DateTime.Now;
 
-            // Unlock all columns so editing is enabled
+            // Unlock all columns so editing is possible
             foreach (DataColumn col in data.Columns)
             {
                 col.ReadOnly = false;
@@ -185,16 +292,21 @@ namespace NertyDb.ViewModels
             _data = data;
             _filteredView = _data.DefaultView;
 
-            ResolveTableAndPkInfo();
             InitializeRowTracking();
+            _ = ResolveTableAndPkInfoAsync();
 
-            AddRowCommand = new RelayCommand(ExecuteAddNewRow);
-            DuplicateRowCommand = new RelayCommand(ExecuteDuplicateRow);
-            DeleteRowCommand = new RelayCommand(ExecuteDeleteRow);
-            DiscardChangesCommand = new RelayCommand(ExecuteDiscardChanges, () => HasPendingChanges);
-            CommitChangesCommand = new RelayCommand(ExecuteCommitChanges, () => HasPendingChanges);
+            AddRowCommand = new RelayCommand(ExecuteAddNewRow, _ => !IsReadOnly);
+            DuplicateRowCommand = new RelayCommand(ExecuteDuplicateRow, _ => !IsReadOnly);
+            DeleteRowCommand = new RelayCommand(ExecuteDeleteRow, _ => !IsReadOnly);
+            DiscardChangesCommand = new RelayCommand(_ => ExecuteDiscardChanges(), _ => HasPendingChanges);
+            CommitChangesCommand = new RelayCommand(_ => ExecuteCommitChanges(), _ => HasPendingChanges && !IsReadOnly);
             RefreshCommand = new AsyncRelayCommand(async _ => await RefreshDataAsync());
-            ExportCommand = new RelayCommand(ExecuteExport);
+            ExportCommand = new RelayCommand(_ => ExecuteExport());
+
+            FirstPageCommand = new RelayCommand(_ => CurrentPage = 1, _ => CurrentPage > 1);
+            PrevPageCommand = new RelayCommand(_ => CurrentPage = Math.Max(1, CurrentPage - 1), _ => CurrentPage > 1);
+            NextPageCommand = new RelayCommand(_ => CurrentPage = Math.Min(TotalPages, CurrentPage + 1), _ => CurrentPage < TotalPages);
+            LastPageCommand = new RelayCommand(_ => CurrentPage = TotalPages, _ => CurrentPage < TotalPages);
         }
 
         public async Task RefreshDataAsync()
@@ -204,7 +316,7 @@ namespace NertyDb.ViewModels
 
             try
             {
-                var result = await _driver.ExecuteQueryAsync(_connection, _database, ExecutedSql);
+                var result = await _driver.ExecuteQueryAsync(_connection, _database, ExecutedSql, timeoutSeconds: 30, maxRows: PageSize);
                 if (!result.HasError && result.Tables.Count > 0)
                 {
                     var dt = result.Tables[0];
@@ -212,14 +324,17 @@ namespace NertyDb.ViewModels
                     {
                         col.ReadOnly = false;
                     }
+                    DurationMs = result.DurationMs;
+                    ExecutionTime = DateTime.Now;
                     Data = dt;
                     ToastService.Instance.ShowSuccess($"Resultado atualizado: {Data.Rows.Count:N0} linha(s).", "Atualização");
                     AppLogService.Instance.LogSuccess("Editor SQL", $"Query atualizada: {Data.Rows.Count} linhas retornadas.");
                 }
                 else
                 {
-                    ToastService.Instance.ShowError($"Erro ao atualizar query: {result.ErrorMessage}", "Falha de Atualização");
-                    AppLogService.Instance.LogError("Editor SQL", $"Falha ao atualizar query: {result.ErrorMessage}");
+                    var err = result.ErrorMessage ?? "Nenhum resultado retornado.";
+                    ToastService.Instance.ShowError($"Erro ao atualizar query: {err}", "Falha de Atualização");
+                    AppLogService.Instance.LogError("Editor SQL", $"Falha ao atualizar query: {err}");
                 }
             }
             catch (Exception ex)
@@ -233,20 +348,42 @@ namespace NertyDb.ViewModels
             }
         }
 
-        private void ResolveTableAndPkInfo()
+        public async Task ResolveTableAndPkInfoAsync()
         {
             if (string.IsNullOrEmpty(TableName)) return;
 
-            var cache = MetadataCacheService.Instance;
-            var details = cache.GetCachedTableDetails(_connection.Id, _database, Schema, TableName);
-            if (details != null && details.PrimaryKeyColumns.Count > 0)
+            try
             {
-                PrimaryKeyColumns = new List<string>(details.PrimaryKeyColumns);
+                var cache = MetadataCacheService.Instance;
+                var details = cache.GetCachedTableDetails(_connection.Id, _database, Schema, TableName);
+
+                if (details == null)
+                {
+                    details = await _driver.GetTableDetailsAsync(_connection, _database, Schema, TableName);
+                    if (details != null)
+                    {
+                        cache.SetCachedTableDetails(_connection.Id, _database, Schema, TableName, details);
+                    }
+                }
+
+                if (details != null)
+                {
+                    if (details.PrimaryKeyColumns.Count > 0)
+                    {
+                        PrimaryKeyColumns = new List<string>(details.PrimaryKeyColumns);
+                    }
+
+                    IdentityColumns.Clear();
+                    foreach (var col in details.Columns.Where(c => c.IsIdentity))
+                    {
+                        IdentityColumns.Add(col.Name);
+                    }
+                }
             }
-            else
+            catch
             {
-                // Inspect columns in Data to guess PK if column names match Senior standard
-                var pkCandidates = new[] { "NUMEMP", "CODFIL", "NUMCAD", "DATACC", "HORACC", "CODUSU", "ID", "CODIGO" };
+                // Fallback: check Senior convention PK column names
+                var pkCandidates = new[] { "NUMEMP", "CODFIL", "NUMCAD", "DATACC", "HORACC", "CODUSU", "PERID", "DATSEQ", "ID", "CODIGO" };
                 foreach (var c in pkCandidates)
                 {
                     if (Data.Columns.Contains(c) && !PrimaryKeyColumns.Contains(c))
@@ -254,6 +391,12 @@ namespace NertyDb.ViewModels
                         PrimaryKeyColumns.Add(c);
                     }
                 }
+            }
+            finally
+            {
+                OnPropertyChanged(nameof(HasPrimaryKey));
+                OnPropertyChanged(nameof(ReadOnlyBadgeText));
+                OnPropertyChanged(nameof(ReadOnlyBadgeColor));
             }
         }
 
@@ -309,6 +452,12 @@ namespace NertyDb.ViewModels
             {
                 FilteredView.RowFilter = string.Join(" OR ", filters);
             }
+        }
+
+        public void TriggerVisualUpdate()
+        {
+            UpdatePendingCounts();
+            VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
         }
 
         public void OnCellEdited(DataRowView rowView, string columnName, object? newValue)
@@ -390,6 +539,68 @@ namespace NertyDb.ViewModels
             VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
         }
 
+        public void ApplyBulkCellValues(IEnumerable<(DataRowView rowView, string columnName)> cells, object? rawValue)
+        {
+            foreach (var item in cells)
+            {
+                if (item.rowView == null || string.IsNullOrEmpty(item.columnName)) continue;
+                if (!Data.Columns.Contains(item.columnName)) continue;
+
+                var col = Data.Columns[item.columnName]!;
+                object? typedVal = ConvertValueToColumnType(rawValue, col);
+                item.rowView[item.columnName] = typedVal ?? DBNull.Value;
+                OnCellEdited(item.rowView, item.columnName, typedVal);
+            }
+
+            TriggerVisualUpdate();
+        }
+
+        public static object? ConvertValueToColumnType(object? value, DataColumn column)
+        {
+            if (value == null || value == DBNull.Value) return DBNull.Value;
+            var str = value.ToString()?.Trim();
+            if (string.IsNullOrEmpty(str) || str.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+            {
+                return DBNull.Value;
+            }
+
+            var targetType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
+
+            try
+            {
+                if (targetType == typeof(string)) return str;
+                if (targetType == typeof(int)) return int.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(long)) return long.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(short)) return short.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(byte)) return byte.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(decimal)) return decimal.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(double)) return double.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(float)) return float.Parse(str, NumberStyles.Any, CultureInfo.CurrentCulture);
+                if (targetType == typeof(bool))
+                {
+                    if (str == "1" || str.Equals("true", StringComparison.OrdinalIgnoreCase) || str.Equals("sim", StringComparison.OrdinalIgnoreCase) || str.Equals("s", StringComparison.OrdinalIgnoreCase)) return true;
+                    if (str == "0" || str.Equals("false", StringComparison.OrdinalIgnoreCase) || str.Equals("nao", StringComparison.OrdinalIgnoreCase) || str.Equals("não", StringComparison.OrdinalIgnoreCase) || str.Equals("n", StringComparison.OrdinalIgnoreCase)) return false;
+                    return bool.Parse(str);
+                }
+                if (targetType == typeof(DateTime)) return DateTime.Parse(str, CultureInfo.CurrentCulture);
+                if (targetType == typeof(Guid)) return Guid.Parse(str);
+
+                return Convert.ChangeType(str, targetType, CultureInfo.CurrentCulture);
+            }
+            catch
+            {
+                // Fallback attempt with InvariantCulture
+                try
+                {
+                    return Convert.ChangeType(str, targetType, CultureInfo.InvariantCulture);
+                }
+                catch
+                {
+                    return str;
+                }
+            }
+        }
+
         private bool AreValuesEqual(object? v1, object? v2)
         {
             if ((v1 == null || v1 == DBNull.Value) && (v2 == null || v2 == DBNull.Value)) return true;
@@ -417,7 +628,7 @@ namespace NertyDb.ViewModels
             }
             else
             {
-                // Use all columns in WHERE if no PK
+                // Fallback: match all original column values
                 foreach (var kvp in origDict)
                 {
                     pks[kvp.Key] = kvp.Value == DBNull.Value ? null : kvp.Value;
@@ -428,6 +639,8 @@ namespace NertyDb.ViewModels
 
         public void ExecuteAddNewRow(object? _ = null)
         {
+            if (IsReadOnly) return;
+
             foreach (DataColumn col in Data.Columns)
             {
                 col.ReadOnly = false;
@@ -437,8 +650,14 @@ namespace NertyDb.ViewModels
             var newRow = Data.NewRow();
             foreach (DataColumn col in Data.Columns)
             {
-                if (col.AutoIncrement) continue;
-                newRow[col] = DBNull.Value;
+                if (col.AutoIncrement || IdentityColumns.Contains(col.ColumnName))
+                {
+                    newRow[col] = DBNull.Value;
+                }
+                else
+                {
+                    newRow[col] = DBNull.Value;
+                }
             }
 
             Data.Rows.Add(newRow);
@@ -456,26 +675,41 @@ namespace NertyDb.ViewModels
 
             foreach (DataColumn col in Data.Columns)
             {
-                change.NewValues[col.ColumnName] = null;
+                if (!IdentityColumns.Contains(col.ColumnName))
+                {
+                    change.NewValues[col.ColumnName] = null;
+                }
             }
 
             PendingChanges.Add(change);
             UpdatePendingCounts();
             VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
+            RowCreated?.Invoke(this, rowIndex);
             OnPropertyChanged(nameof(RowCount));
             OnPropertyChanged(nameof(Summary));
+            OnPropertyChanged(nameof(ExecutionStatusText));
         }
 
         public void ExecuteDuplicateRow(object? parameter)
         {
+            if (IsReadOnly) return;
+
             DataRow? sourceRow = null;
             if (parameter is DataRowView rowView)
             {
                 sourceRow = rowView.Row;
             }
-            else if (parameter is System.Collections.IList list && list.Count > 0 && list[0] is DataRowView firstView)
+            else if (parameter is IList list && list.Count > 0)
             {
-                sourceRow = firstView.Row;
+                var first = list[0];
+                if (first is DataRowView drv)
+                {
+                    sourceRow = drv.Row;
+                }
+                else if (first is DataGridCellInfo cellInfo && cellInfo.Item is DataRowView cellRow)
+                {
+                    sourceRow = cellRow.Row;
+                }
             }
 
             if (sourceRow == null && Data.Rows.Count > 0)
@@ -502,10 +736,9 @@ namespace NertyDb.ViewModels
 
             foreach (DataColumn col in Data.Columns)
             {
-                if (col.AutoIncrement)
+                if (col.AutoIncrement || IdentityColumns.Contains(col.ColumnName))
                 {
                     newRow[col] = DBNull.Value;
-                    change.NewValues[col.ColumnName] = null;
                 }
                 else
                 {
@@ -523,27 +756,51 @@ namespace NertyDb.ViewModels
             PendingChanges.Add(change);
             UpdatePendingCounts();
             VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
+            RowCreated?.Invoke(this, rowIndex);
             OnPropertyChanged(nameof(RowCount));
             OnPropertyChanged(nameof(Summary));
+            OnPropertyChanged(nameof(ExecutionStatusText));
+
+            ToastService.Instance.ShowSuccess($"Linha #{rowIndex + 1} duplicada com sucesso! Altere os campos e clique em Salvar.", "Linha Duplicada");
         }
 
         public void ExecuteDeleteRow(object? parameter)
         {
+            if (IsReadOnly) return;
+
+            var rowsToDelete = new List<DataRow>();
+
             if (parameter is DataRowView rowView)
             {
-                DeleteRow(rowView.Row);
+                rowsToDelete.Add(rowView.Row);
             }
-            else if (parameter is System.Collections.IList list)
+            else if (parameter is IList list)
             {
-                var rowViews = list.OfType<DataRowView>().ToList();
-                foreach (var rv in rowViews)
+                foreach (var item in list)
                 {
-                    DeleteRow(rv.Row);
+                    if (item is DataRowView drv && !rowsToDelete.Contains(drv.Row))
+                    {
+                        rowsToDelete.Add(drv.Row);
+                    }
+                    else if (item is DataGridCellInfo cell && cell.Item is DataRowView cellDrv && !rowsToDelete.Contains(cellDrv.Row))
+                    {
+                        rowsToDelete.Add(cellDrv.Row);
+                    }
                 }
+            }
+
+            if (rowsToDelete.Count == 0 && Data.Rows.Count > 0)
+            {
+                rowsToDelete.Add(Data.Rows[Data.Rows.Count - 1]);
+            }
+
+            foreach (var r in rowsToDelete)
+            {
+                DeleteSingleRow(r);
             }
         }
 
-        private void DeleteRow(DataRow row)
+        private void DeleteSingleRow(DataRow row)
         {
             var rowIndex = Data.Rows.IndexOf(row);
             if (rowIndex < 0) return;
@@ -558,11 +815,13 @@ namespace NertyDb.ViewModels
                 VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
                 OnPropertyChanged(nameof(RowCount));
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(ExecutionStatusText));
                 return;
             }
 
             if (DeletedRowIndices.Contains(rowIndex))
             {
+                // Unmark deletion
                 DeletedRowIndices.Remove(rowIndex);
                 var delChange = PendingChanges.FirstOrDefault(c => c.Type == ChangeType.Delete && c.RowIndex == rowIndex);
                 if (delChange != null) PendingChanges.Remove(delChange);
@@ -634,6 +893,7 @@ namespace NertyDb.ViewModels
             VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
             OnPropertyChanged(nameof(RowCount));
             OnPropertyChanged(nameof(Summary));
+            OnPropertyChanged(nameof(ExecutionStatusText));
         }
 
         private void ExecuteDiscardChanges()
@@ -669,11 +929,13 @@ namespace NertyDb.ViewModels
             VisualChangesUpdated?.Invoke(this, EventArgs.Empty);
             OnPropertyChanged(nameof(RowCount));
             OnPropertyChanged(nameof(Summary));
+            OnPropertyChanged(nameof(ExecutionStatusText));
+            ToastService.Instance.ShowInfo("Todas as alterações pendentes foram descartadas.", "Alterações Descartadas");
         }
 
         private void ExecuteCommitChanges()
         {
-            if (PendingChanges.Count == 0) return;
+            if (PendingChanges.Count == 0 || IsReadOnly) return;
 
             var pendingVm = new PendingChangesViewModel(
                 _connection,
@@ -682,11 +944,11 @@ namespace NertyDb.ViewModels
                 string.IsNullOrEmpty(TableName) ? "TABELA" : TableName,
                 PendingChanges.ToList(),
                 _driver,
-                onSuccess: () =>
+                onSuccess: async () =>
                 {
-                    // Re-initialize tracking with current data as clean baseline
-                    InitializeRowTracking();
-                    return Task.CompletedTask;
+                    // Auto-refresh from database after successful commit
+                    await RefreshDataAsync();
+                    ToastService.Instance.ShowSuccess("Alterações salvas e sincronizadas com sucesso!", "Salvo");
                 });
 
             _openPendingChangesDialog(pendingVm);

@@ -152,30 +152,200 @@ namespace NertyDb.Views
             }
         }
 
+        private void MainDataGrid_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (ViewModel == null || ViewModel.IsReadOnly) return;
+
+            var isCtrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == System.Windows.Input.ModifierKeys.Control;
+            var isAlt = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Alt) == System.Windows.Input.ModifierKeys.Alt;
+
+            // Paste (Ctrl+V)
+            if (e.Key == System.Windows.Input.Key.V && isCtrl && !isAlt)
+            {
+                e.Handled = true;
+                HandleGridPaste();
+            }
+            // Delete / Backspace on selected cells
+            else if ((e.Key == System.Windows.Input.Key.Delete || e.Key == System.Windows.Input.Key.Back) && !isCtrl && !isAlt)
+            {
+                if (System.Windows.Input.Keyboard.FocusedElement is not TextBox)
+                {
+                    var selectedCells = MainDataGrid.SelectedCells.ToList();
+                    if (selectedCells.Count > 0)
+                    {
+                        e.Handled = true;
+                        foreach (var cell in selectedCells)
+                        {
+                            if (cell.Item is DataRowView rowView && cell.Column != null)
+                            {
+                                var colName = GetColumnName(cell.Column);
+                                if (!string.IsNullOrEmpty(colName) && ViewModel.TableData.Columns.Contains(colName))
+                                {
+                                    rowView[colName] = DBNull.Value;
+                                    ViewModel.OnCellEdited(rowView, colName, DBNull.Value);
+                                }
+                            }
+                        }
+                        RefreshRowColors();
+                    }
+                }
+            }
+            // Duplicate Row (Ctrl+Alt+Down)
+            else if (e.Key == System.Windows.Input.Key.Down && isCtrl && isAlt)
+            {
+                e.Handled = true;
+                ViewModel.DuplicateRowCommand.Execute(MainDataGrid.SelectedItem);
+            }
+        }
+
+        private void HandleGridPaste()
+        {
+            if (ViewModel == null || !Clipboard.ContainsText()) return;
+
+            var clipboardText = Clipboard.GetText();
+            if (string.IsNullOrEmpty(clipboardText)) return;
+
+            var selectedCells = MainDataGrid.SelectedCells.ToList();
+            if (selectedCells.Count == 0 && MainDataGrid.SelectedItem is DataRowView)
+            {
+                if (MainDataGrid.Columns.Count > 0)
+                {
+                    selectedCells.Add(new DataGridCellInfo(MainDataGrid.SelectedItem, MainDataGrid.Columns[0]));
+                }
+            }
+            if (selectedCells.Count == 0) return;
+
+            var rawLines = clipboardText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var lines = rawLines.ToList();
+            if (lines.Count > 1 && string.IsNullOrEmpty(lines[lines.Count - 1]))
+            {
+                lines.RemoveAt(lines.Count - 1);
+            }
+
+            var matrix = lines.Select(l => l.Split('\t')).ToArray();
+            int matrixRows = matrix.Length;
+            int matrixCols = matrix.Max(r => r.Length);
+
+            // Single value pasted across multiple cells (Mass edit)
+            if (matrixRows == 1 && matrixCols == 1 && selectedCells.Count > 1)
+            {
+                var singleVal = matrix[0][0];
+                foreach (var cell in selectedCells)
+                {
+                    if (cell.Item is DataRowView rowView && cell.Column != null)
+                    {
+                        var colName = GetColumnName(cell.Column);
+                        if (!string.IsNullOrEmpty(colName) && ViewModel.TableData.Columns.Contains(colName))
+                        {
+                            var col = ViewModel.TableData.Columns[colName]!;
+                            var typedVal = SqlResultTabViewModel.ConvertValueToColumnType(singleVal, col);
+                            rowView[colName] = typedVal ?? DBNull.Value;
+                            ViewModel.OnCellEdited(rowView, colName, typedVal);
+                        }
+                    }
+                }
+                RefreshRowColors();
+                return;
+            }
+
+            // Matrix paste
+            var orderedCells = selectedCells
+                .Where(c => c.Item is DataRowView && c.Column != null)
+                .Select(c => new
+                {
+                    Cell = c,
+                    RowView = (DataRowView)c.Item,
+                    RowIndex = ViewModel.TableData.Rows.IndexOf(((DataRowView)c.Item).Row),
+                    DisplayIndex = c.Column.DisplayIndex,
+                    ColumnName = GetColumnName(c.Column)
+                })
+                .OrderBy(c => c.RowIndex)
+                .ThenBy(c => c.DisplayIndex)
+                .ToList();
+
+            if (orderedCells.Count == 0) return;
+
+            int minRow = orderedCells.Min(c => c.RowIndex);
+            int minCol = orderedCells.Min(c => c.DisplayIndex);
+
+            for (int r = 0; r < matrixRows; r++)
+            {
+                int targetRowIdx = minRow + r;
+                if (targetRowIdx >= ViewModel.FilteredView.Count) break;
+
+                var targetRowView = ViewModel.FilteredView[targetRowIdx];
+                for (int c = 0; c < matrix[r].Length; c++)
+                {
+                    int targetColDisplayIdx = minCol + c;
+                    var col = MainDataGrid.Columns.FirstOrDefault(x => x.DisplayIndex == targetColDisplayIdx);
+                    if (col == null) continue;
+
+                    var colName = GetColumnName(col);
+                    if (!string.IsNullOrEmpty(colName) && ViewModel.TableData.Columns.Contains(colName))
+                    {
+                        var valStr = matrix[r][c];
+                        var colDef = ViewModel.TableData.Columns[colName]!;
+                        var typedVal = SqlResultTabViewModel.ConvertValueToColumnType(valStr, colDef);
+                        targetRowView[colName] = typedVal ?? DBNull.Value;
+                        ViewModel.OnCellEdited(targetRowView, colName, typedVal);
+                    }
+                }
+            }
+
+            RefreshRowColors();
+        }
+
+        private static string GetColumnName(DataGridColumn col)
+        {
+            var path = col.SortMemberPath;
+            if (!string.IsNullOrEmpty(path)) return path;
+            if (col.Header is TextBlock tb)
+            {
+                return tb.Text.Replace("🔑 ", "").Trim();
+            }
+            if (col.Header is string h)
+            {
+                return h.Replace("🔑 ", "").Trim();
+            }
+            return col.Header?.ToString() ?? string.Empty;
+        }
+
         private void MainDataGrid_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)
         {
             if (e.EditAction != DataGridEditAction.Commit || ViewModel == null) return;
 
             if (e.Row.Item is DataRowView rowView)
             {
-                var colName = e.Column.Header?.ToString()?.Replace("🔑 ", "").Trim() ?? e.Column.SortMemberPath;
-                object? newValue = null;
+                var colName = GetColumnName(e.Column);
+                if (string.IsNullOrEmpty(colName) || !ViewModel.TableData.Columns.Contains(colName)) return;
 
+                object? newValue = null;
                 if (e.EditingElement is TextBox tb)
                 {
                     var text = tb.Text;
-                    if (string.Equals(text, "(NULL)", StringComparison.OrdinalIgnoreCase))
-                    {
-                        newValue = DBNull.Value;
-                    }
-                    else
-                    {
-                        newValue = text;
-                    }
+                    var col = ViewModel.TableData.Columns[colName]!;
+                    newValue = SqlResultTabViewModel.ConvertValueToColumnType(text, col);
                 }
 
-                // Dispatch to ViewModel
-                ViewModel.OnCellEdited(rowView, colName, newValue);
+                // Mass edit: if multiple cells were selected in this column, update all of them
+                var selectedInCol = MainDataGrid.SelectedCells
+                    .Where(c => c.Item is DataRowView && c.Column != null && GetColumnName(c.Column) == colName)
+                    .Select(c => (DataRowView)c.Item)
+                    .Distinct()
+                    .ToList();
+
+                if (selectedInCol.Count > 1)
+                {
+                    foreach (var rv in selectedInCol)
+                    {
+                        rv[colName] = newValue ?? DBNull.Value;
+                        ViewModel.OnCellEdited(rv, colName, newValue);
+                    }
+                }
+                else
+                {
+                    ViewModel.OnCellEdited(rowView, colName, newValue);
+                }
                 
                 // Refresh visual styling
                 Dispatcher.BeginInvoke(new Action(RefreshRowColors), System.Windows.Threading.DispatcherPriority.Background);

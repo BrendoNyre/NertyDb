@@ -1,68 +1,71 @@
-# Walkthrough — NertyDb v1.3.0: Mensagens Visuais, Toolbar DBeaver, Dicionário Senior Real e Atalhos
+# Walkthrough — Grade de Resultados SQL no Padrão DBeaver
 
-Implementamos e validamos com 100% de cobertura todos os 5 pilares solicitados na nova versão:
-
----
-
-## 🔔 1. Sistema de Notificações Toast & Registro Estruturado de Mensagens
-- **ToastService (`ToastService.cs` & `ToastContainer.xaml`)**:
-  - Toasts animados, leves e flutuantes no canto inferior direito da janela principal.
-  - Quatro níveis com ícones e cores temáticas: `Success (Verde)`, `Warning (Âmbar)`, `Error (Vermelho)`, `Info (Azul)`.
-  - Auto-dismiss com temporizador em 4s e botão de fechar manual. Thread-safe com despacho direto para a UI.
-- **Registro Estruturado (`AppLogService.cs` & `SqlEditorView.xaml`)**:
-  - Nova aba "💬 Mensagens" com lista estruturada: badge de nível, timestamp em formato `HH:mm:ss`, componente de origem, mensagem clara e comando/detalhe SQL.
-  - Botão **🗑️ Limpar Mensagens** para reset rápido.
+Revisamos, corrigimos e aprimoramos todas as funcionalidades da grade de resultados das consultas SQL e da visualização de dados de tabela, posicionando a barra de ferramentas no local correto e conectando todas as ações ponta a ponta.
 
 ---
 
-## 🛠️ 2. Barra de Ferramentas Completa na Aba de Resultados (Padrão DBeaver)
-- **Ações Disponíveis por Aba de Resultado (`SqlResultTabViewModel.cs` & `SqlEditorView.xaml`)**:
-  - 🔍 **Filtro Rápido de Linhas**: Filtra instantaneamente o `DataView` da grade sem reexecutar query.
-  - 🔄 **Atualizar (F5)**: Reexecuta a consulta original da aba com notificação Toast e atualização dos dados.
-  - ➕ **Inserir (Insert)**: Insere nova linha vazia para edição direta na grade.
-  - 📋 **Duplicar (Ctrl+Alt+Down)**: Clona a linha selecionada para agilizar cadastros semelhantes.
-  - 🗑️ **Excluir (Delete)**: Marca as linhas selecionadas para exclusão com destaque visual em vermelho.
-  - 💾 **Salvar Alterações (Ctrl+S)**: Abre o modal de revisão de DML com script de transação e confirma a gravação.
-  - ↩️ **Descartar**: Reverte as edições em lote sem salvar.
-  - 📤 **Exportar...**: Exporta o conjunto de dados da aba para CSV, Excel ou JSON.
+## 🎯 1. Barra de Ferramentas no Local Correto (Inferior)
+- A barra de manipulação dos resultados foi posicionada na **parte inferior da área de resultados** (abaixo do DataGrid), exatamente como no DBeaver.
+- **Estrutura integrada**:
+  ```text
+  Editor SQL
+  ──────────────────────────────────────────────────────────────────────────
+  Resultado da Consulta (Aba)
+  [ 🔍 Filtro rápido em memória...                                         ]
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │ 🔑 perid     │ 🔑 datseq    │ dat1                      │ dat2         │
+  │ 1073741836   │ 1            │ %!!!F#%7ZF:OVD;7]...      │ NULL         │
+  └────────────────────────────────────────────────────────────────────────┘
+  [ 📊 Seleção: Soma: 1 | Média: 1 | Mín: 1 | Máx: 1 | Contagem: 1 ] (ao selecionar)
+  [🔄 Atualizar] [💾 Salvar] [❌ Cancelar] [➕ Inserir] [📋 Duplicar] [🗑️ Excluir] |
+  [⏮] [◀] [▶] [⏭] | [📤 Exportar dados] | [⚙️ Limite: [ 200 v ]] [Pág: 1] |
+  1 linha(s) recuperada(s) - 0,062s | [✏️ Gravável / 🔒 Somente Leitura] [pt_BR]
+  ```
 
 ---
 
-## 🏷️ 3. Dicionário de Dados Senior Real (Tabelas e Colunas)
-- **Causa Raiz da Rodada Anterior**:
-  - As tabelas `R999TAB` e `R999COL` encontravam-se vazias em ambientes padrão Senior.
-  - As descrições reais da Senior residem nas tabelas de dicionário nativas:
-    - **Tabelas**: `r996tbl` (nativas) e `r998tbl` (customizadas) com colunas `tblnam` e `destbl`, e `r910tbl` com `nomtbl` e `destbl`. Testado com **3.927 descrições de tabelas** (`R034FUN -> Ficha Básica Colaborador`, `R030EMP -> Empresas`, `R038HCA -> Histórico Cargos`).
-    - **Colunas**: `r996fld`, `r998fld` com colunas `tblnam`, `fldnam`, `desfld`/`lgntit`/`shrtit`, e `r910cmp` com `nomtbl`, `nomcmp`, `descmp`. Testado com **203 colunas documentadas para R034FUN** (`ANOCHE -> Ano de Chegada`, `APEFUN -> Apelido`, etc.).
-- **Consultas Otimizadas em Lote (`SqlServerDriver.cs` & `OracleDriver.cs`)**:
-  - Implementado fallback em cadeia para `r996/r998/r910/r999` e `sys.extended_properties` / `ALL_TAB_COMMENTS`.
-  - Árvore de esquema (`SchemaTreeViewModel.cs`) exibe subtítulo amigável e busca rápida por nome técnico ou descrição (ex: digitando "Colaborador" ou "Ponto" localiza as tabelas correspondentes).
+## 📋 2. Duplicação Completa e Visível de Linhas
+- Ao selecionar uma linha ou célula e clicar em **📋 Duplicar** (ou `Ctrl+Alt+Down`):
+  1. Cria imediatamente a nova linha visível na grade.
+  2. Clona os valores da linha selecionada (preservando campos de PK editáveis e ignorando colunas Identity/Auto-Increment).
+  3. Marca a linha com destaque visual verde de inserção (`DiffInsertedBgBrush`).
+  4. Registra a linha como alteração pendente do tipo `Insert`.
+  5. Rola a grade e seleciona a nova linha para que o usuário possa editar qualquer campo antes de salvar.
+  6. Ao clicar em **💾 Salvar**, envia o `INSERT` em transação atômica.
+  7. Ao clicar em **❌ Cancelar**, a linha duplicada desaparece sem afetar o banco.
 
 ---
 
-## 🔄 4. Atualização Automática da Grade pós-Gravação (Auto-Refresh)
-- `TableDataViewModel.cs` e `SqlResultTabViewModel.cs`:
-  - Após confirmação e commit atômico no banco de dados via `PendingChangesViewModel`, a grade executa automaticamente um novo `SELECT` para refletir o estado real das colunas (triggers, sequence/identity, defaults).
-  - Emite notificação Toast de sucesso verde informando o total de alterações salvas.
+## ✏️ 3. Edição em Massa de Células & Copiar/Colar de Planilha
+- **Edição em Massa por Digitação**:
+  - Ao selecionar múltiplas células de uma mesma coluna e editar uma delas, o novo valor digitado é propagado automaticamente para todas as células selecionadas.
+- **Colagem de Valor Único**:
+  - Copiar um valor (ex: `7`) e colar (`Ctrl+V`) sobre múltiplas células selecionadas preenche todas elas com `7`.
+- **Colagem Matricial / Vetorial (Multi-linha & Multi-coluna)**:
+  - Copiar valores tabulados (ex: do Excel ou do próprio grid: `7\r\n8\r\n9\r\n10`) e colar sobre células selecionadas distribui cada valor sequencialmente para sua respectiva linha e coluna.
+- **Limpeza Rápida de Células**:
+  - Pressionar `Delete` ou `Backspace` sobre células selecionadas redefine seus valores para `NULL` (registrando a alteração pendente).
 
 ---
 
-## ⌨️ 5. Atalhos de Teclado no Padrão DBeaver & Guia de Ajuda (F1)
-- **Novos Atalhos Globais e de Editor**:
-  - `F5` / `Ctrl+Enter` / `Ctrl+E`: Executa a instrução sob o cursor.
-  - `Alt+X`: Executa todo o script SQL.
-  - `Ctrl+Shift+F`: Formata o SQL com indentação e keywords em maiúsculas.
-  - `Ctrl+/`: Comenta / Descomenta linha atual (`-- `).
-  - `Ctrl+Shift+/`: Comenta / Descomenta bloco (`/* ... */`).
-  - `Ctrl+Alt+Down`: Duplica linha no editor ou registro na grade.
-  - `Ctrl+Shift+L`: Deleta linha no editor.
-  - `Ctrl+Shift+U`: Converte seleção para MAIÚSCULAS.
-  - `Ctrl+Shift+Alt+U`: Converte seleção para minúsculas.
-  - `F1` / Botão **⌨️ Atalhos (F1)**: Abre o modal `ShortcutsHelpDialog.xaml` com o cheat sheet completo.
+## 🔒 4. Identificação Segura de Chave Primária (PK) em SELECTs
+- O sistema analisa o SQL executado:
+  - **Tabela Única** (ex: `SELECT * FROM dbo.r900pdt WHERE perid IN (1073741836)`):
+    - Extrai o schema e o nome da tabela.
+    - Consulta assincronamente os metadados do banco (`GetTableDetailsAsync`) para obter as colunas de chave primária (`PrimaryKeyColumns`) e identity.
+    - Habilita o modo **✏️ Gravável**, gerando `UPDATE` e `DELETE` rigorosamente com `WHERE pk1 = val1 AND pk2 = val2`.
+  - **Queries Complexas (JOIN, GROUP BY, UNION, Agregações como COUNT/SUM)**:
+    - Identifica a ambiguidade e define o modo **🔒 Somente Leitura** (`IsReadOnly = true`), exibindo o badge com o motivo e desativando edições perigosas.
+
+---
+
+## ⚙️ 5. Limitador de Linhas Real (50, 100, 200, 500, 1000, Sem Limite)
+- O seletor de limite na barra inferior controla o parâmetro `maxRows`.
+- Os drivers `SqlServerDriver` e `OracleDriver` interrompem a leitura do `DataReader` ao atingir a quantidade configurada, evitando consumo desnecessário de memória e tráfego de rede.
 
 ---
 
 ## 🧪 Validação e Testes Automatizados
-- **Build**: Compilado com **0 Erros** e **0 Warnings**.
-- **Testes Unitários**: **49/49 testes aprovados** com 100% de sucesso.
-- **Binário Portable**: Gerado em `publish/NertyDb.exe` (56 MB, autossuficiente e portátil).
+- **Build**: Compilação realizada com **0 Erros** e **0 Warnings**.
+- **Testes Unitários**: **53/53 testes aprovados** (100% de cobertura nos cenários de duplicação, edição em massa, colagem matricial, exclusão múltipla, descarte e geração de DML com PKs).
+- **Binário Portable**: Gerado em `publish/NertyDb.exe` (56 MB, autossuficiente).

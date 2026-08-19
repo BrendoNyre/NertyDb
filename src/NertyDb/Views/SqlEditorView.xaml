@@ -104,39 +104,17 @@
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                             <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
-                                        <!-- Result Tab Actions Bar (DBeaver style) -->
-                                        <Border Grid.Row="0" Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,4">
+                                        <!-- Top Filter / Expression Bar (DBeaver style) -->
+                                        <Border Grid.Row="0" Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,3">
                                             <DockPanel>
-                                                <!-- Left: DBeaver Navigation & Data Actions -->
-                                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                                                    <!-- Quick Search Filter in Result -->
-                                                    <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="4,2" Margin="0,0,6,0">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="🔍" VerticalAlignment="Center" Margin="4,0,4,0" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" />
-                                                            <TextBox Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}" Width="130" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" ToolTip="Filtrar resultados na grade" />
-                                                        </StackPanel>
-                                                    </Border>
-
-                                                    <Button Content="🔄 Atualizar" Command="{Binding RefreshCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Reexecutar consulta e atualizar dados da grade" />
-                                                    <Button Content="➕ Inserir" Command="{Binding AddRowCommand}" Padding="6,2" Margin="0,0,4,0" Style="{StaticResource PrimaryButton}" ToolTip="Inserir nova linha na grade (Insert)" />
-                                                    <Button Content="📋 Duplicar" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=ResultGrid}" Padding="6,2" Margin="0,0,4,0" ToolTip="Duplicar linha selecionada (Ctrl+Alt+Down)" />
-                                                    <Button Content="🗑️ Excluir" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItems, ElementName=ResultGrid}" Padding="6,2" Margin="0,0,4,0" Style="{StaticResource DangerButton}" ToolTip="Marcar linha(s) selecionada(s) para exclusão (Delete)" />
-                                                    <Button Content="📤 Exportar..." Command="{Binding ExportCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Exportar resultados da aba para CSV, Excel ou JSON" />
-                                                </StackPanel>
-
-                                                <!-- Right: Commit / Discard Actions -->
-                                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                                                    <Border Background="{DynamicResource DiffModifiedBgBrush}" BorderBrush="{DynamicResource AccentWarningBrush}" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="⚡" Margin="0,0,3,0" />
-                                                            <TextBlock Text="{Binding PendingBadgeText}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource DiffModifiedFgBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                            <Button Content="💾 Salvar" Command="{Binding CommitChangesCommand}" Style="{StaticResource SuccessButton}" Padding="6,2" Margin="0,0,2,0" ToolTip="Salvar alterações no banco de dados (Ctrl+S)" />
-                                                            <Button Content="↩️ Descartar" Command="{Binding DiscardChangesCommand}" Padding="6,2" ToolTip="Descartar alterações pendentes" />
-                                                        </StackPanel>
-                                                    </Border>
-                                                </StackPanel>
+                                                <TextBlock Text="🔍" VerticalAlignment="Center" Margin="4,0,6,0" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" DockPanel.Dock="Left" />
+                                                <TextBox Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}" 
+                                                         BorderThickness="0" Background="Transparent" VerticalAlignment="Center" 
+                                                         ToolTip="Filtrar resultados na grade (filtro rápido em memória)" 
+                                                         Foreground="{DynamicResource FgMainBrush}" />
                                             </DockPanel>
                                         </Border>
 
@@ -150,6 +128,8 @@
                                                   CellEditEnding="ResultGrid_CellEditEnding"
                                                   LoadingRow="ResultGrid_LoadingRow"
                                                   SelectedCellsChanged="ResultGrid_SelectedCellsChanged"
+                                                  PreviewKeyDown="ResultGrid_PreviewKeyDown"
+                                                  Loaded="ResultGrid_Loaded"
                                                   IsReadOnly="False"
                                                   CanUserAddRows="False"
                                                   CanUserDeleteRows="False"
@@ -164,14 +144,14 @@
                                                   SelectionMode="Extended">
                                             <DataGrid.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Header="🔄 Atualizar Resultado" Command="{Binding RefreshCommand}" />
+                                                    <MenuItem Header="🔄 Atualizar Resultado (F5)" Command="{Binding RefreshCommand}" />
                                                     <Separator />
-                                                    <MenuItem Header="➕ Inserir Nova Linha" Command="{Binding AddRowCommand}" />
-                                                    <MenuItem Header="📋 Duplicar Linha Selecionada" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                                    <MenuItem Header="🗑️ Marcar Linha(s) para Exclusão" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <MenuItem Header="➕ Inserir Nova Linha (Insert)" Command="{Binding AddRowCommand}" />
+                                                    <MenuItem Header="📋 Duplicar Linha Selecionada (Ctrl+Alt+Down)" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <MenuItem Header="🗑️ Marcar Linha(s) para Exclusão (Delete)" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                                     <MenuItem Header="↩️ Descartar Alterações da Linha" Click="DiscardResultRow_Click" />
                                                     <Separator />
-                                                    <MenuItem Header="📋 Copiar Célula" Click="CopyResultCell_Click" />
+                                                    <MenuItem Header="📋 Copiar Célula (Ctrl+C)" Click="CopyResultCell_Click" />
                                                     <MenuItem Header="📑 Copiar Linha(s) como CSV" Click="CopyResultRowsCsv_Click" />
                                                     <MenuItem Header="💾 Copiar Linha(s) como INSERT SQL" Click="CopyResultRowsSql_Click" />
                                                     <Separator />
@@ -202,11 +182,81 @@
                                             </DockPanel>
                                         </Border>
 
-                                        <!-- Result Tab Footer -->
-                                        <Border Grid.Row="3" Background="{DynamicResource BgHeaderBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="6,2">
-                                            <DockPanel>
-                                                <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource FgMutedBrush}" FontSize="10" VerticalAlignment="Center" DockPanel.Dock="Left" />
-                                                <TextBlock Text="{Binding SourceTableSummary}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                                        <!-- DBeaver Result Toolbar (Positioned at Bottom of Results) -->
+                                        <Border Grid.Row="3" Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="6,3">
+                                            <DockPanel LastChildFill="True">
+                                                <!-- Left: Actions, Navigation, Limit and Stats -->
+                                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                                    <!-- Refresh Button -->
+                                                    <Button Content="🔄 Atualizar" Command="{Binding RefreshCommand}" Padding="6,2" Margin="0,0,3,0" ToolTip="Atualizar / Reexecutar consulta (F5)" />
+
+                                                    <!-- Commit Changes Button -->
+                                                    <Button Content="💾 Salvar" Command="{Binding CommitChangesCommand}" Style="{StaticResource SuccessButton}" Padding="6,2" Margin="0,0,2,0" ToolTip="Salvar alterações no banco de dados (Ctrl+S)" Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}" />
+                                                    
+                                                    <!-- Discard Changes Button -->
+                                                    <Button Content="❌ Cancelar" Command="{Binding DiscardChangesCommand}" Padding="5,2" Margin="0,0,4,0" ToolTip="Cancelar e reverter alterações pendentes" Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}" />
+
+                                                    <!-- Pending Badge -->
+                                                    <Border Background="{DynamicResource DiffModifiedBgBrush}" BorderBrush="{DynamicResource AccentWarningBrush}" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,4,0" Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="{Binding PendingBadgeText}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource DiffModifiedFgBrush}" VerticalAlignment="Center" />
+                                                    </Border>
+
+                                                    <!-- Row Manipulation Buttons -->
+                                                    <Button Content="➕ Inserir" Command="{Binding AddRowCommand}" Padding="5,2" Margin="0,0,2,0" Style="{StaticResource PrimaryButton}" ToolTip="Inserir nova linha na grade (Insert)" />
+                                                    <Button Content="📋 Duplicar" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=ResultGrid}" Padding="5,2" Margin="0,0,2,0" ToolTip="Duplicar linha selecionada (Ctrl+Alt+Down)" />
+                                                    <Button Content="🗑️ Excluir" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItems, ElementName=ResultGrid}" Padding="5,2" Margin="0,0,4,0" Style="{StaticResource DangerButton}" ToolTip="Marcar linha(s) selecionada(s) para exclusão (Delete)" />
+
+                                                    <!-- Separator -->
+                                                    <Rectangle Width="1" Height="14" Fill="{DynamicResource BorderBrush}" Margin="4,0" VerticalAlignment="Center" />
+
+                                                    <!-- Navigation Buttons -->
+                                                    <Button Content="⏮" Command="{Binding FirstPageCommand}" Padding="5,1" Margin="0,0,1,0" ToolTip="Primeira página" />
+                                                    <Button Content="◀" Command="{Binding PrevPageCommand}" Padding="5,1" Margin="0,0,1,0" ToolTip="Página anterior" />
+                                                    <Button Content="▶" Command="{Binding NextPageCommand}" Padding="5,1" Margin="0,0,1,0" ToolTip="Próxima página" />
+                                                    <Button Content="⏭" Command="{Binding LastPageCommand}" Padding="5,1" Margin="0,0,4,0" ToolTip="Última página" />
+
+                                                    <!-- Separator -->
+                                                    <Rectangle Width="1" Height="14" Fill="{DynamicResource BorderBrush}" Margin="4,0" VerticalAlignment="Center" />
+
+                                                    <!-- Export Button -->
+                                                    <Button Content="📤 Exportar dados" Command="{Binding ExportCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Exportar resultados para CSV, Excel ou JSON" />
+
+                                                    <!-- Separator -->
+                                                    <Rectangle Width="1" Height="14" Fill="{DynamicResource BorderBrush}" Margin="4,0" VerticalAlignment="Center" />
+
+                                                    <!-- Limit Selector (DBeaver style) -->
+                                                    <TextBlock Text="⚙️ Limite:" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" Margin="2,0,3,0" />
+                                                    <ComboBox SelectedValue="{Binding PageSize, Mode=TwoWay}" SelectedValuePath="Tag" Width="70" Height="22" VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Limite de linhas recuperadas">
+                                                        <ComboBoxItem Content="50" Tag="50" />
+                                                        <ComboBoxItem Content="100" Tag="100" />
+                                                        <ComboBoxItem Content="200" Tag="200" IsSelected="True" />
+                                                        <ComboBoxItem Content="500" Tag="500" />
+                                                        <ComboBoxItem Content="1000" Tag="1000" />
+                                                        <ComboBoxItem Content="Sem limite" Tag="0" />
+                                                    </ComboBox>
+
+                                                    <!-- Page Indicator -->
+                                                    <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                                                        <TextBlock Text="{Binding CurrentPage, StringFormat='Pág: {0}'}" FontSize="10" Foreground="{DynamicResource FgSecondaryBrush}" VerticalAlignment="Center" />
+                                                    </Border>
+
+                                                    <!-- Separator -->
+                                                    <Rectangle Width="1" Height="14" Fill="{DynamicResource BorderBrush}" Margin="4,0" VerticalAlignment="Center" />
+
+                                                    <!-- Status and Timing Info -->
+                                                    <TextBlock Text="{Binding ExecutionStatusText}" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" Margin="4,0,6,0" />
+                                                </StackPanel>
+
+                                                <!-- Right: Read-Only / Writable Badge & Locale -->
+                                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="5,1" Margin="0,0,4,0">
+                                                        <TextBlock Text="{Binding ReadOnlyBadgeText}" FontWeight="SemiBold" FontSize="10" Foreground="{Binding ReadOnlyBadgeColor}" VerticalAlignment="Center" ToolTip="{Binding IsReadOnlyReason}" />
+                                                    </Border>
+
+                                                    <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="4,1">
+                                                        <TextBlock Text="pt_BR | UTF-8" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" />
+                                                    </Border>
+                                                </StackPanel>
                                             </DockPanel>
                                         </Border>
                                     </Grid>

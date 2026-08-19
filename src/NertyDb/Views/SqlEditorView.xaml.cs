@@ -419,6 +419,215 @@ namespace NertyDb.Views
 
         #region Editable Result DataGrid Handlers
 
+        private void ResultGrid_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is DataGrid grid && grid.DataContext is SqlResultTabViewModel vm)
+            {
+                vm.VisualChangesUpdated -= (s, args) => RefreshGridVisuals(grid, vm);
+                vm.VisualChangesUpdated += (s, args) => RefreshGridVisuals(grid, vm);
+
+                vm.RowCreated -= (s, rowIndex) => ScrollRowIntoView(grid, rowIndex);
+                vm.RowCreated += (s, rowIndex) => ScrollRowIntoView(grid, rowIndex);
+            }
+        }
+
+        private void RefreshGridVisuals(DataGrid grid, SqlResultTabViewModel vm)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                for (int i = 0; i < grid.Items.Count; i++)
+                {
+                    if (grid.ItemContainerGenerator.ContainerFromIndex(i) is DataGridRow row)
+                    {
+                        UpdateRowVisual(row, vm);
+                    }
+                }
+            });
+        }
+
+        private void ScrollRowIntoView(DataGrid grid, int rowIndex)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (rowIndex >= 0 && rowIndex < grid.Items.Count)
+                {
+                    var item = grid.Items[rowIndex];
+                    grid.SelectedItem = item;
+                    grid.ScrollIntoView(item);
+                }
+            });
+        }
+
+        private void ResultGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (sender is not DataGrid grid || grid.DataContext is not SqlResultTabViewModel vm) return;
+
+            var isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            var isAlt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+            // Paste (Ctrl+V)
+            if (e.Key == Key.V && isCtrl && !isAlt)
+            {
+                e.Handled = true;
+                HandleGridPaste(grid, vm);
+            }
+            // Delete / Backspace on selected cells
+            else if ((e.Key == Key.Delete || e.Key == Key.Back) && !isCtrl && !isAlt)
+            {
+                if (Keyboard.FocusedElement is not TextBox)
+                {
+                    var selectedCells = grid.SelectedCells.ToList();
+                    if (selectedCells.Count > 0)
+                    {
+                        e.Handled = true;
+                        var cellsToClear = selectedCells
+                            .Where(c => c.Item is DataRowView && c.Column != null)
+                            .Select(c => ((DataRowView)c.Item, GetColumnName(c.Column)))
+                            .Where(x => !string.IsNullOrEmpty(x.Item2))
+                            .ToList();
+
+                        vm.ApplyBulkCellValues(cellsToClear, null);
+                        RefreshGridVisuals(grid, vm);
+                    }
+                }
+            }
+            // Duplicate Row (Ctrl+Alt+Down)
+            else if (e.Key == Key.Down && isCtrl && isAlt)
+            {
+                e.Handled = true;
+                vm.DuplicateRowCommand.Execute(grid.SelectedCells);
+            }
+            // Insert Row (Insert)
+            else if (e.Key == Key.Insert)
+            {
+                e.Handled = true;
+                vm.AddRowCommand.Execute(null);
+            }
+        }
+
+        private void HandleGridPaste(DataGrid grid, SqlResultTabViewModel vm)
+        {
+            if (grid == null || vm == null || !Clipboard.ContainsText()) return;
+
+            var clipboardText = Clipboard.GetText();
+            if (string.IsNullOrEmpty(clipboardText)) return;
+
+            var selectedCells = grid.SelectedCells.ToList();
+            if (selectedCells.Count == 0 && grid.SelectedItem is DataRowView)
+            {
+                if (grid.Columns.Count > 0)
+                {
+                    selectedCells.Add(new DataGridCellInfo(grid.SelectedItem, grid.Columns[0]));
+                }
+            }
+            if (selectedCells.Count == 0) return;
+
+            var rawLines = clipboardText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var lines = rawLines.ToList();
+            if (lines.Count > 1 && string.IsNullOrEmpty(lines[lines.Count - 1]))
+            {
+                lines.RemoveAt(lines.Count - 1);
+            }
+
+            var matrix = lines.Select(l => l.Split('\t')).ToArray();
+            int matrixRows = matrix.Length;
+            int matrixCols = matrix.Max(r => r.Length);
+
+            // Scenario A: Single value pasted across multiple selected cells (Mass edit)
+            if (matrixRows == 1 && matrixCols == 1 && selectedCells.Count > 1)
+            {
+                var singleVal = matrix[0][0];
+                var cellItems = selectedCells
+                    .Where(c => c.Item is DataRowView && c.Column != null)
+                    .Select(c => ((DataRowView)c.Item, GetColumnName(c.Column)))
+                    .Where(x => !string.IsNullOrEmpty(x.Item2))
+                    .ToList();
+
+                vm.ApplyBulkCellValues(cellItems, singleVal);
+                RefreshGridVisuals(grid, vm);
+                return;
+            }
+
+            // Scenario B: Matrix / multi-value paste
+            var orderedCells = selectedCells
+                .Where(c => c.Item is DataRowView && c.Column != null)
+                .Select(c => new
+                {
+                    Cell = c,
+                    RowView = (DataRowView)c.Item,
+                    RowIndex = vm.Data.Rows.IndexOf(((DataRowView)c.Item).Row),
+                    DisplayIndex = c.Column.DisplayIndex,
+                    ColumnName = GetColumnName(c.Column)
+                })
+                .OrderBy(c => c.RowIndex)
+                .ThenBy(c => c.DisplayIndex)
+                .ToList();
+
+            if (orderedCells.Count == 0) return;
+
+            int minRow = orderedCells.Min(c => c.RowIndex);
+            int minCol = orderedCells.Min(c => c.DisplayIndex);
+
+            // If matching vertical vector (e.g. 4 values pasted into 4 vertical cells)
+            if (matrixCols == 1 && orderedCells.All(c => c.DisplayIndex == orderedCells[0].DisplayIndex) && orderedCells.Count == matrixRows)
+            {
+                for (int i = 0; i < orderedCells.Count; i++)
+                {
+                    var item = orderedCells[i];
+                    var valStr = matrix[i][0];
+                    if (vm.Data.Columns.Contains(item.ColumnName))
+                    {
+                        var col = vm.Data.Columns[item.ColumnName]!;
+                        var typedVal = SqlResultTabViewModel.ConvertValueToColumnType(valStr, col);
+                        item.RowView[item.ColumnName] = typedVal ?? DBNull.Value;
+                        vm.OnCellEdited(item.RowView, item.ColumnName, typedVal);
+                    }
+                }
+                vm.TriggerVisualUpdate();
+                RefreshGridVisuals(grid, vm);
+                return;
+            }
+
+            // General rectangular paste starting from top-left cell
+            for (int r = 0; r < matrixRows; r++)
+            {
+                int targetRowIdx = minRow + r;
+                if (targetRowIdx >= vm.FilteredView.Count) break;
+
+                var targetRowView = vm.FilteredView[targetRowIdx];
+                for (int c = 0; c < matrix[r].Length; c++)
+                {
+                    int targetColDisplayIdx = minCol + c;
+                    var col = grid.Columns.FirstOrDefault(x => x.DisplayIndex == targetColDisplayIdx);
+                    if (col == null) continue;
+
+                    var colName = GetColumnName(col);
+                    if (!string.IsNullOrEmpty(colName) && vm.Data.Columns.Contains(colName))
+                    {
+                        var valStr = matrix[r][c];
+                        var colDef = vm.Data.Columns[colName]!;
+                        var typedVal = SqlResultTabViewModel.ConvertValueToColumnType(valStr, colDef);
+                        targetRowView[colName] = typedVal ?? DBNull.Value;
+                        vm.OnCellEdited(targetRowView, colName, typedVal);
+                    }
+                }
+            }
+
+            vm.TriggerVisualUpdate();
+            RefreshGridVisuals(grid, vm);
+        }
+
+        private static string GetColumnName(DataGridColumn col)
+        {
+            var path = col.SortMemberPath;
+            if (!string.IsNullOrEmpty(path)) return path;
+            if (col.Header is string h)
+            {
+                return h.Replace("🔑 ", "").Trim();
+            }
+            return col.Header?.ToString() ?? string.Empty;
+        }
+
         private void ResultGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
         {
             e.Column.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
@@ -430,7 +639,10 @@ namespace NertyDb.Views
         {
             if (sender is DataGrid dg && dg.DataContext is SqlResultTabViewModel vm)
             {
-                // Allow editing always
+                if (vm.IsReadOnly)
+                {
+                    e.Cancel = true;
+                }
             }
         }
 
@@ -440,41 +652,34 @@ namespace NertyDb.Views
             if (sender is not DataGrid grid || grid.DataContext is not SqlResultTabViewModel vm) return;
             if (e.Row.Item is not DataRowView rowView) return;
 
-            var colHeader = e.Column.Header?.ToString();
-            if (string.IsNullOrEmpty(colHeader)) return;
+            var colHeader = GetColumnName(e.Column);
+            if (string.IsNullOrEmpty(colHeader) || !vm.Data.Columns.Contains(colHeader)) return;
 
             object? newValue = null;
             if (e.EditingElement is TextBox tb)
             {
                 var text = tb.Text;
-                if (string.IsNullOrWhiteSpace(text) || text.Trim().Equals("NULL", StringComparison.OrdinalIgnoreCase))
-                {
-                    newValue = DBNull.Value;
-                }
-                else
-                {
-                    var col = vm.Data.Columns[colHeader];
-                    if (col != null)
-                    {
-                        try
-                        {
-                            var targetType = Nullable.GetUnderlyingType(col.DataType) ?? col.DataType;
-                            newValue = Convert.ChangeType(text, targetType);
-                        }
-                        catch
-                        {
-                            newValue = text;
-                        }
-                    }
-                    else
-                    {
-                        newValue = text;
-                    }
-                }
+                var col = vm.Data.Columns[colHeader]!;
+                newValue = SqlResultTabViewModel.ConvertValueToColumnType(text, col);
             }
 
-            vm.OnCellEdited(rowView, colHeader, newValue);
+            // Mass edit: if multiple cells were selected in this exact column, apply to all selected cells!
+            var selectedCellsInCol = grid.SelectedCells
+                .Where(c => c.Item is DataRowView && c.Column != null && GetColumnName(c.Column) == colHeader)
+                .Select(c => ((DataRowView)c.Item, colHeader))
+                .ToList();
+
+            if (selectedCellsInCol.Count > 1)
+            {
+                vm.ApplyBulkCellValues(selectedCellsInCol, newValue);
+            }
+            else
+            {
+                vm.OnCellEdited(rowView, colHeader, newValue);
+            }
+
             UpdateRowVisual(e.Row, vm);
+            RefreshGridVisuals(grid, vm);
         }
 
         private void ResultGrid_LoadingRow(object sender, DataGridRowEventArgs e)
