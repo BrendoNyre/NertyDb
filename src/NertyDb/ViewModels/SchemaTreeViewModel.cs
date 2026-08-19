@@ -42,6 +42,21 @@ namespace NertyDb.ViewModels
         public ConnectionProfile? Connection { get; set; }
         public object? Tag { get; set; }
         public SchemaNode? Parent { get; set; }
+        public string? Description { get; set; }
+
+        public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
+
+        public string TooltipText
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(Description))
+                {
+                    return $"{Title}: {Description}";
+                }
+                return $"{Title} {SubTitle}".Trim();
+            }
+        }
 
         public ObservableCollection<SchemaNode> Children { get; } = new();
 
@@ -126,11 +141,13 @@ namespace NertyDb.ViewModels
                 {
                     var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                     var pkStr = col.IsPrimaryKey ? " [PK]" : "";
+                    var descText = !string.IsNullOrWhiteSpace(col.Description) ? $" — {col.Description}" : "";
                     colFolder.Children.Add(new SchemaNode
                     {
                         NodeType = SchemaNodeType.Column,
                         Title = col.Name,
-                        SubTitle = $"{col.FullTypeDescription}, {nullStr}{pkStr}",
+                        SubTitle = $"{col.FullTypeDescription}, {nullStr}{pkStr}{descText}",
+                        Description = col.Description,
                         Connection = Connection,
                         Database = Database,
                         Schema = Schema,
@@ -187,8 +204,8 @@ namespace NertyDb.ViewModels
                         fkFolder.Children.Add(new SchemaNode
                         {
                             NodeType = SchemaNodeType.Key,
-                            Title = $"{fk.ColumnName} -> {fk.ReferencedTable}.{fk.ReferencedColumn}",
-                            SubTitle = fk.ConstraintName,
+                            Title = fk.ConstraintName,
+                            SubTitle = $"{fk.ColumnName} -> {fk.ReferencedSchema}.{fk.ReferencedTable}({fk.ReferencedColumn})",
                             Connection = Connection,
                             Database = Database,
                             Schema = Schema,
@@ -213,11 +230,13 @@ namespace NertyDb.ViewModels
                     };
                     foreach (var idx in details.Indexes)
                     {
+                        var uStr = idx.IsUnique ? "Único" : "Não-único";
+                        var pkStr = idx.IsPrimaryKey ? ", PK" : "";
                         idxFolder.Children.Add(new SchemaNode
                         {
                             NodeType = SchemaNodeType.Index,
                             Title = idx.Name,
-                            SubTitle = $"{idx.TypeDescription} ({string.Join(", ", idx.Columns)})",
+                            SubTitle = $"{uStr}{pkStr} ({string.Join(", ", idx.Columns)})",
                             Connection = Connection,
                             Database = Database,
                             Schema = Schema,
@@ -227,7 +246,15 @@ namespace NertyDb.ViewModels
                     Children.Add(idxFolder);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Children.Clear();
+                Children.Add(new SchemaNode
+                {
+                    Title = $"Erro ao carregar detalhes: {ex.Message}",
+                    Parent = this
+                });
+            }
         }
     }
 
@@ -289,7 +316,7 @@ namespace NertyDb.ViewModels
                     MetadataCacheService.Instance.ClearCache(sn.Connection.Id);
                     await LoadDatabaseStructureAsync(sn.Connection, sn.Database);
                 }
-            });
+            }, (node) => node is SchemaNode);
 
             OpenTableCommand = new RelayCommand((node) =>
             {
@@ -297,29 +324,29 @@ namespace NertyDb.ViewModels
                 {
                     _onOpenTable(sn.Connection, sn.Database, sn.Schema, sn.Title);
                 }
-            });
+            }, (node) => node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null);
 
             CountRowsCommand = new RelayCommand((node) =>
             {
-                if (node is SchemaNode sn && sn.NodeType == SchemaNodeType.Table && sn.Connection != null)
+                if (node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null)
                 {
                     var sql = sn.Connection.DatabaseType == DatabaseType.Oracle
                         ? $"SELECT COUNT(1) AS TotalLinhas FROM \"{sn.Schema}\".\"{sn.Title}\";"
                         : $"SELECT COUNT_BIG(1) AS [TotalLinhas] FROM [{sn.Schema}].[{sn.Title}];";
                     _onNewQueryWithSql(sn.Connection, sn.Database, sql);
                 }
-            });
+            }, (node) => node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null);
 
             GenerateSelectCommand = new RelayCommand((node) =>
             {
                 if (node is SchemaNode sn && sn.Connection != null)
                 {
                     var sql = sn.Connection.DatabaseType == DatabaseType.Oracle
-                        ? $"SELECT * FROM \"{sn.Schema}\".\"{sn.Title}\" WHERE ROWNUM <= 100;"
-                        : $"SELECT TOP (100) * \r\nFROM [{sn.Schema}].[{sn.Title}]\r\nORDER BY 1 DESC;";
+                        ? $"SELECT * FROM \"{sn.Schema}\".\"{sn.Title}\" WHERE ROWNUM <= 200;"
+                        : $"SELECT TOP (200) * \r\nFROM [{sn.Schema}].[{sn.Title}]\r\nORDER BY 1 DESC;";
                     _onNewQueryWithSql(sn.Connection, sn.Database, sql);
                 }
-            });
+            }, (node) => node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null);
 
             GenerateInsertCommand = new RelayCommand((node) =>
             {
@@ -330,34 +357,46 @@ namespace NertyDb.ViewModels
                         : $"-- Modelo de INSERT para {sn.Schema}.{sn.Title}\r\nINSERT INTO [{sn.Schema}].[{sn.Title}] (\r\n    /* Colunas */\r\n)\r\nVALUES (\r\n    /* Valores */\r\n);";
                     _onNewQueryWithSql(sn.Connection, sn.Database, sql);
                 }
-            });
+            }, (node) => node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null);
 
             GenerateCreateTableCommand = new AsyncRelayCommand(async (node) =>
             {
-                if (node is SchemaNode sn && sn.Connection != null)
+                if (node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null)
                 {
-                    var driver = DbDriverFactory.GetDriver(sn.Connection);
-                    var details = await MetadataCacheService.Instance.GetTableDetailsAsync(sn.Connection, sn.Database, sn.Schema, sn.Title, driver);
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine($"-- Definição de tabela: {sn.Schema}.{sn.Title}");
-                    sb.AppendLine($"CREATE TABLE [{sn.Schema}].[{sn.Title}] (");
-                    for (int i = 0; i < details.Columns.Count; i++)
+                    try
                     {
-                        var col = details.Columns[i];
-                        var comma = i < details.Columns.Count - 1 ? "," : "";
-                        var nullability = col.IsNullable ? "NULL" : "NOT NULL";
-                        var identity = col.IsIdentity ? " IDENTITY(1,1)" : "";
-                        var def = !string.IsNullOrEmpty(col.DefaultValue) ? $" DEFAULT {col.DefaultValue}" : "";
-                        sb.AppendLine($"    [{col.Name}] {col.FullTypeDescription}{identity} {nullability}{def}{comma}");
+                        var driver = DbDriverFactory.GetDriver(sn.Connection);
+                        var details = await MetadataCacheService.Instance.GetTableDetailsAsync(sn.Connection, sn.Database, sn.Schema, sn.Title, driver);
+                        var sb = new System.Text.StringBuilder();
+                        sb.AppendLine($"-- Definição de tabela: {sn.Schema}.{sn.Title}");
+                        if (!string.IsNullOrWhiteSpace(details.Description))
+                        {
+                            sb.AppendLine($"-- Descrição: {details.Description}");
+                        }
+                        sb.AppendLine($"CREATE TABLE [{sn.Schema}].[{sn.Title}] (");
+                        for (int i = 0; i < details.Columns.Count; i++)
+                        {
+                            var col = details.Columns[i];
+                            var comma = i < details.Columns.Count - 1 ? "," : "";
+                            var nullability = col.IsNullable ? "NULL" : "NOT NULL";
+                            var identity = col.IsIdentity ? " IDENTITY(1,1)" : "";
+                            var def = !string.IsNullOrEmpty(col.DefaultValue) ? $" DEFAULT {col.DefaultValue}" : "";
+                            var comment = !string.IsNullOrEmpty(col.Description) ? $" /* {col.Description} */" : "";
+                            sb.AppendLine($"    [{col.Name}] {col.FullTypeDescription}{identity} {nullability}{def}{comma}{comment}");
+                        }
+                        if (details.PrimaryKeyColumns.Count > 0)
+                        {
+                            sb.AppendLine($"    ,CONSTRAINT [PK_{sn.Title}] PRIMARY KEY ({string.Join(", ", details.PrimaryKeyColumns.Select(c => $"[{c}]"))})");
+                        }
+                        sb.AppendLine(");");
+                        _onNewQueryWithSql(sn.Connection, sn.Database, sb.ToString());
                     }
-                    if (details.PrimaryKeyColumns.Count > 0)
+                    catch (Exception ex)
                     {
-                        sb.AppendLine($"    ,CONSTRAINT [PK_{sn.Title}] PRIMARY KEY ({string.Join(", ", details.PrimaryKeyColumns.Select(c => $"[{c}]"))})");
+                        System.Windows.MessageBox.Show($"Falha ao gerar DDL: {ex.Message}", "Aviso", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     }
-                    sb.AppendLine(");");
-                    _onNewQueryWithSql(sn.Connection, sn.Database, sb.ToString());
                 }
-            });
+            }, (node) => node is SchemaNode sn && (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View) && sn.Connection != null);
 
             CopyNameCommand = new RelayCommand((node) =>
             {
@@ -367,11 +406,13 @@ namespace NertyDb.ViewModels
                         ? $"\"{sn.Schema}\".\"{sn.Title}\""
                         : $"[{sn.Schema}].[{sn.Title}]";
 
-                    System.Windows.Clipboard.SetText(sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View
+                    var textToCopy = (sn.NodeType == SchemaNodeType.Table || sn.NodeType == SchemaNodeType.View)
                         ? formatted
-                        : sn.Title);
+                        : sn.Title;
+
+                    ClipboardHelper.SetText(textToCopy);
                 }
-            });
+            }, (node) => node is SchemaNode);
         }
 
         public async Task LoadDatabaseStructureAsync(ConnectionProfile profile, string selectedDatabase)
@@ -436,12 +477,14 @@ namespace NertyDb.ViewModels
 
                 foreach (var t in tables)
                 {
+                    var descSub = !string.IsNullOrWhiteSpace(t.Description) ? $" — {t.Description}" : "";
                     var itemNode = new SchemaNode
                     {
                         NodeType = t.IsView ? SchemaNodeType.View : SchemaNodeType.Table,
                         Title = t.Name,
                         Schema = t.Schema,
-                        SubTitle = t.IsView ? t.Schema : $"{t.Schema} ({(t.RowCount >= 0 ? $"{t.RowCount:N0} lins" : "")})",
+                        SubTitle = (t.IsView ? t.Schema : $"{t.Schema} ({(t.RowCount >= 0 ? $"{t.RowCount:N0} lins" : "")})") + descSub,
+                        Description = t.Description,
                         Connection = profile,
                         Database = selectedDatabase,
                         Tag = t,

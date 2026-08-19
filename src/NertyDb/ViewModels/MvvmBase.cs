@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 
 namespace NertyDb.ViewModels
@@ -48,7 +49,22 @@ namespace NertyDb.ViewModels
 
         public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
 
-        public void Execute(object? parameter) => _execute(parameter);
+        public void Execute(object? parameter)
+        {
+            if (!CanExecute(parameter)) return;
+            try
+            {
+                _execute(parameter);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Erro ao executar comando:\r\n\r\n{ex.Message}",
+                    "NertyDb — Aviso",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
 
         public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
     }
@@ -86,6 +102,14 @@ namespace NertyDb.ViewModels
             try
             {
                 await _execute(parameter);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Erro na execução assíncrona:\r\n\r\n{ex.Message}",
+                    "NertyDb — Aviso",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
             finally
             {

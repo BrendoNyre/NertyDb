@@ -71,6 +71,15 @@ namespace NertyDb.Views
             }
         }
 
+        private void TreeViewItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is TreeViewItem tvi)
+            {
+                tvi.IsSelected = true;
+                tvi.Focus();
+            }
+        }
+
         private void TreeView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is TreeView tv && tv.SelectedItem is SchemaNode sn)

@@ -21,6 +21,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Top Action & Pagination Toolbar -->
@@ -69,13 +70,16 @@
                             
                             <TextBlock Text="{Binding PaginationSummary}" Foreground="{DynamicResource FgSecondaryBrush}" VerticalAlignment="Center" Margin="4,0,4,0" FontSize="11" />
                             
-                            <Button Content="▶" Command="{Binding NextPageCommand}" Padding="6,2" Margin="4,0,2,0" ToolTip="Próxima página" />
+                            <Button Content="➕ Carregar Mais" Command="{Binding LoadMoreRowsCommand}" Padding="8,2" Margin="4,0,4,0" ToolTip="Carregar próxima página de registros" />
+                            
+                            <Button Content="▶" Command="{Binding NextPageCommand}" Padding="6,2" Margin="2,0,2,0" ToolTip="Próxima página" />
                             <Button Content="⏭" Command="{Binding LastPageCommand}" Padding="6,2" Margin="0,0,6,0" ToolTip="Última página" />
 
                             <TextBlock Text="Por pág:" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" Margin="4,0,4,0" FontSize="11" />
-                            <ComboBox SelectedValue="{Binding PageSize, Mode=TwoWay}" SelectedValuePath="Tag" Width="70" VerticalAlignment="Center">
+                            <ComboBox SelectedValue="{Binding PageSize, Mode=TwoWay}" SelectedValuePath="Tag" Width="75" VerticalAlignment="Center">
                                 <ComboBoxItem Content="50" Tag="50" />
-                                <ComboBoxItem Content="100" Tag="100" IsSelected="True" />
+                                <ComboBoxItem Content="100" Tag="100" />
+                                <ComboBoxItem Content="200" Tag="200" IsSelected="True" />
                                 <ComboBoxItem Content="500" Tag="500" />
                                 <ComboBoxItem Content="1000" Tag="1000" />
                                 <ComboBoxItem Content="Todas" Tag="0" />
@@ -109,6 +113,7 @@
                       CellEditEnding="MainDataGrid_CellEditEnding"
                       LoadingRow="MainDataGrid_LoadingRow"
                       Sorting="MainDataGrid_Sorting"
+                      SelectedCellsChanged="MainDataGrid_SelectedCellsChanged"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
                       VirtualizingPanel.IsVirtualizing="True"
@@ -147,8 +152,30 @@
             </Border>
         </Grid>
 
+        <!-- Selection Aggregation Stats Bar (DBeaver style) -->
+        <Border Grid.Row="3" 
+                Background="{DynamicResource BgSurfaceBrush}" 
+                BorderBrush="{DynamicResource BorderBrush}" 
+                BorderThickness="0,1,0,0" 
+                Padding="8,3"
+                Visibility="{Binding SelectionStats.HasSelection, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <Border Background="{DynamicResource AccentBrush}" CornerRadius="3" Padding="5,1" Margin="0,0,8,0">
+                        <TextBlock Text="📊 Seleção" FontSize="10" FontWeight="Bold" Foreground="White" />
+                    </Border>
+                    <TextBlock Text="{Binding SelectionStats.FormattedSummary}" 
+                               FontFamily="Consolas, Segoe UI" 
+                               FontSize="11" 
+                               FontWeight="SemiBold" 
+                               Foreground="{DynamicResource FgMainBrush}" 
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
         <!-- Bottom Table Status Bar -->
-        <Border Grid.Row="3" Background="{DynamicResource BgHeaderBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="8,4">
+        <Border Grid.Row="4" Background="{DynamicResource BgHeaderBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="8,4">
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource FgSecondaryBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0" />

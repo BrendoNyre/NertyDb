@@ -9,7 +9,7 @@ namespace NertyDb.Services
     public class UserSettings
     {
         public string Theme { get; set; } = "Light"; // "Light" or "Dark"
-        public int DefaultPageSize { get; set; } = 100;
+        public int DefaultPageSize { get; set; } = 200;
         public int QueryTimeoutSeconds { get; set; } = 30;
         public bool ConfirmBeforeCommit { get; set; } = true;
         public string LastSelectedConnectionId { get; set; } = string.Empty;

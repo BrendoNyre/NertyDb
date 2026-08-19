@@ -34,6 +34,7 @@ namespace NertyDb.ViewModels
         public HashSet<int> DeletedRowIndices { get; } = new();
         public ObservableCollection<PendingChange> PendingChanges { get; } = new();
         public List<string> PrimaryKeyColumns { get; set; } = new();
+        public SelectionStatsViewModel SelectionStats { get; } = new();
 
         public event EventHandler? VisualChangesUpdated;
 

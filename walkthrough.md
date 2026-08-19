@@ -1,55 +1,69 @@
-# Walkthrough — Validação Real de Senha do Usuário Senior (SGU)
+# Walkthrough — Melhorias Inspiradas no DBeaver, Estabilidade e Identidade Visual
 
-Implementamos a engenharia reversa e a validação criptográfica real da senha do usuário do **SGU (Sistema Senior / CBDS)** sobre as tabelas `R900PPL` e `R900PDT`, eliminando a falha de segurança onde qualquer senha arbitrária era aceita.
-
----
-
-## 🔍 Descoberta & Engenharia Reversa da Arquitetura Senior
-
-Inspecionamos os pacotes do framework Senior (`g6-security-senior.jar`, `com.senior.security.impl.SeniorLogon`, `G5BinaryHelper`, `PersonLoader`):
-
-1. **Armazenamento de Credenciais**:
-   - `R900PPL`: Contém `perid` (ID da entidade) e `pernam` (login em maiúsculo).
-   - `R900PDT`: Contém a stream binária do usuário particionada em blocos Base-64/6-bit customizados (`dat1` e `dat2` com `CHARBASE = 33` e `CHARBITS = 6`).
-2. **Algoritmo de Hash & Criptografia da Senha**:
-   - Calculado via `SeniorCryptoService.EncryptUserPassword(username, password)`.
-   - Gera um checksum Little-Endian de 32 bits a partir do nome do usuário em uppercase (`CheckSumPassword`).
-   - Aplica a inversão bit-a-bit e rotação circular bit-shift do vetor de bytes da senha informada pelo analista.
-3. **Validação**:
-   - Decodifica a stream de dados do usuário (`DecodeUserData`).
-   - Extrai os bytes de senha criptografada armazenada (`ExtractEncryptedPasswordFromUserStream`).
-   - Compara por igualdade de sequência binária (`SequenceEqual`) contra o hash gerado a partir da senha digitada.
+Implementamos e validamos todas as 6 frentes de melhorias solicitadas:
 
 ---
 
-## 🛠️ Alterações Realizadas
-
-### 1. [`SeniorCryptoService.cs`](file:///c:/Users/brendo.oliveira/Documents/NertyDb/src/NertyDb/Services/SeniorCryptoService.cs)
-- Implementados os métodos:
-  - `EncryptUserPassword(string username, string password)`: Gera o vetor criptográfico exato do Senior.
-  - `DecodeUserData(IEnumerable<string> dataStrings)`: Decodifica os fragmentos `dat1`/`dat2` da `R900PDT`.
-  - `ExtractEncryptedPasswordFromUserStream(byte[] userStream)`: Lê o cabeçalho binário do usuário e extrai o hash da senha.
-  - `ValidateSguPassword(string username, string enteredPassword, byte[] storedUserStream)`: Valida se a senha informada confere com a base.
-
-### 2. [`SguAuthenticationService.cs`](file:///c:/Users/brendo.oliveira/Documents/NertyDb/src/NertyDb/Services/SguAuthenticationService.cs)
-- Adicionada consulta à `R900PPL` + `R900PDT` para carregar o registro criptográfico do usuário.
-- Se a senha informada estiver incorreta, a autenticação falha imediatamente com a mensagem:
-  > *"Senha inválida para o usuário SGU '{username}'. Verifique a senha e tente novamente."*
-
-### 3. [`SeniorConfigAndSguTests.cs`](file:///c:/Users/brendo.oliveira/Documents/NertyDb/tests/NertyDb.Tests/SeniorConfigAndSguTests.cs)
-- Adicionados testes automatizados cobrindo vetores criptográficos conhecidos e validações contra usuários reais.
+## 🛡️ 1. Proteção Contra Crashes no Menu de Contexto (Árvore de Objetos)
+- **Causa raiz resolvida**:
+  - `MainWindow.xaml.cs`: Adicionado `PreviewMouseRightButtonDown` para auto-selecionar o nó sob o cursor antes do `ContextMenu` abrir.
+  - `MvvmBase.cs`: `RelayCommand` e `AsyncRelayCommand` agora encapsulam a execução em blocos `try/catch` seguros, exibindo alertas amigáveis em caso de exceção sem derrubar a aplicação.
+  - `ClipboardHelper.cs`: Criado helper com política de até 5 tentativas e backoff exponencial para evitar `COMException` quando a área de transferência do Windows estiver bloqueada por outros processos.
+  - `SchemaTreeViewModel.cs`: Validação estrita de nó selecionado (`NodeType == Table/View`), checagem assíncrona protegida e geração de DDL segura.
 
 ---
 
-## 🧪 Resultados dos Testes
+## ⚡ 2. Atalho `Ctrl+Enter` Inteligente no Editor SQL
+- **Parser de Instruções SQL (`SqlStatementExtractor.cs`)**:
+  - Se houver **texto selecionado**, executa apenas o trecho marcado.
+  - Sem seleção, detecta o **comando sob o cursor** delimitado por ponto e vírgula (`;`), linhas em branco ou blocos `GO`.
+  - Respeita strings literais (`'...'`), comentários de linha (`--`) e blocos de comentário (`/* ... */`).
+- **Intercepção Global**:
+  - Mapeado em `TextArea_PreviewKeyDown` e `Editor_KeyDown` no `SqlEditorView.xaml.cs`.
 
-| Teste | Usuário | Senha | Resultado Esperado | Resultado Obtido |
-| :--- | :--- | :--- | :--- | :--- |
-| Senha Correta | `senior` | `senior` | ✅ Sucesso | **✅ Sucesso (Autenticado)** |
-| Senha Incorreta | `senior` | `tt` | ❌ Falha de Senha | **❌ Falha: Senha inválida** |
-| Senha Correta | `carolina` | `1234` | ✅ Sucesso | **✅ Sucesso (Autenticado)** |
-| Senha Incorreta | `carolina` | `errada` | ❌ Falha de Senha | **❌ Falha: Senha inválida** |
-| Usuário Inexistente | `inexistente` | `123` | ❌ Usuário não encontrado | **❌ Falha: Usuário não encontrado** |
+---
 
-- **Testes Automatizados**: **40 aprovados / 0 falhas**.
-- **Binário Gerado**: `.\publish\NertyDb.exe` (53,32 MB, single-file self-contained).
+## 📄 3. Limitador de 200 Linhas por Padrão & Paginação Ágil
+- `StorageService.cs`: Limite padrão configurado para **200 linhas** (padrão de mercado DBeaver).
+- `TableDataViewModel.cs` & `TableDataView.xaml`:
+  - Seletor de tamanho de página (50, 100, 200, 500, 1.000, 5.000, Todas).
+  - Botão **➕ Carregar Mais** para adicionar os próximos registros sem perder o estado visual atual.
+  - Rodapé com indicador claro (ex: `Exibindo 1 a 200 de 15.420 registros`).
+
+---
+
+## 📊 4. Painel de Cálculo em Tempo Real (Estatísticas de Seleção)
+- `SelectionStatsViewModel.cs`:
+  - Monitora o evento `SelectedCellsChanged` do `DataGrid` tanto na **Visualização de Dados da Tabela** quanto nos **Resultados de Consultas SQL**.
+  - Exibe barra retrátil no rodapé quando células forem selecionadas:
+    - **Numérico**: `Soma (∑)`, `Média (x̄)`, `Mínimo (Min)`, `Máximo (Max)`, `Contagem` e `Distintos` formatados em padrão brasileiro (`pt-BR`).
+    - **Texto / Datas**: `Contagem` e `Distintos`.
+
+---
+
+## 🏷️ 5. Comentários e Descrições de Tabelas e Colunas (CBDS / Dicionário Senior)
+- `TableMetadata.cs`: Modelos estendidos com a propriedade `Description`.
+- `SqlServerDriver.cs`:
+  - Consulta comentários padrão do banco (`sys.extended_properties` / `MS_Description`).
+  - Consulta automática ao **Dicionário de Dados Senior** (`R999TAB` para tabelas e `R999COL` para colunas).
+- `OracleDriver.cs`:
+  - Consulta `ALL_TAB_COMMENTS` e `ALL_COL_COMMENTS`.
+- **Interface Gráfica**:
+  - Na árvore de esquema lateral: Tooltips ricos com o nome técnico e a descrição funcional amigável.
+  - Na grade de dados: Cabeçalho das colunas exibe Tooltip com o nome da coluna e sua descrição no dicionário.
+
+---
+
+## 🎨 6. Logo Própria e Identidade Visual Oficial
+- **Ícone Multi-Resolução (.ico)**:
+  - Gerado `Resources/app_icon.ico` com camadas de 16x16, 32x32, 48x48, 64x64, 128x128 e 256x256 px.
+  - Configurado `<ApplicationIcon>` no `NertyDb.csproj` para exibição no `.exe` e na barra de tarefas do Windows.
+- **Logo na Aplicação**:
+  - Gerado `Resources/app_logo.png` em alta definição.
+  - Adicionado no canto superior esquerdo da janela principal (`MainWindow.xaml`).
+
+---
+
+## 🧪 Validação e Testes
+- **Build**: Compilado com **0 Erros** e **0 Warnings**.
+- **Testes Automatizados**: **47/47 testes aprovados** com 100% de sucesso.

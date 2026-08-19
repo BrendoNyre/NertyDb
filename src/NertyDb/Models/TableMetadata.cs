@@ -16,6 +16,7 @@ namespace NertyDb.Models
         public bool IsIdentity { get; set; }
         public string? DefaultValue { get; set; }
         public int OrdinalPosition { get; set; }
+        public string? Description { get; set; }
 
         public string FullTypeDescription
         {
@@ -62,6 +63,7 @@ namespace NertyDb.Models
         public string Name { get; set; } = string.Empty;
         public bool IsView { get; set; }
         public long RowCount { get; set; } = -1;
+        public string? Description { get; set; }
         public List<ColumnMetadata> Columns { get; set; } = new();
         public List<ForeignKeyMetadata> ForeignKeys { get; set; } = new();
         public List<IndexMetadata> Indexes { get; set; } = new();

@@ -25,13 +25,16 @@ namespace NertyDb.ViewModels
         private bool _isLoading;
         private string _statusText = "Pronto";
         private int _pageNumber = 1;
-        private int _pageSize = 100;
+        private int _pageSize = 200;
         private long _totalRows;
         private string? _sortColumn;
         private bool _sortAscending = true;
         private string _quickFilterText = string.Empty;
         private CancellationTokenSource? _cts;
         private bool _autoCommit = true;
+
+        public SelectionStatsViewModel SelectionStats { get; } = new();
+        public Dictionary<string, string> ColumnDescriptions { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         // Visual tracking for DataGrid styling
         private readonly Dictionary<int, Dictionary<string, object?>> _originalRowValues = new();
@@ -218,6 +221,7 @@ namespace NertyDb.ViewModels
             DiscardChangesCommand = new RelayCommand(ExecuteDiscardChanges, () => HasPendingChanges && !IsLoading);
             CommitChangesCommand = new RelayCommand(ExecuteCommitChanges, () => HasPendingChanges && !IsLoading);
             ExportCommand = new RelayCommand(ExecuteExport, () => TableData.Rows.Count > 0 && !IsLoading);
+            LoadMoreRowsCommand = new RelayCommand(() => PageNumber++, () => PageNumber < TotalPages && !IsLoading);
 
             CancelQueryCommand = new RelayCommand(() =>
             {
@@ -225,6 +229,8 @@ namespace NertyDb.ViewModels
                 StatusText = "Cancelamento solicitado...";
             }, () => IsLoading);
         }
+
+        public ICommand LoadMoreRowsCommand { get; }
 
         public async Task LoadDataAsync()
         {
@@ -258,6 +264,21 @@ namespace NertyDb.ViewModels
                 OnPropertyChanged(nameof(IsReadOnly));
 
                 TotalRows = result.TotalRowCount;
+
+                // Load Column Descriptions for Tooltips
+                try
+                {
+                    var details = await MetadataCacheService.Instance.GetTableDetailsAsync(Connection, Database, Schema, TableName, _driver);
+                    ColumnDescriptions.Clear();
+                    foreach (var c in details.Columns)
+                    {
+                        if (!string.IsNullOrWhiteSpace(c.Description))
+                        {
+                            ColumnDescriptions[c.Name] = c.Description;
+                        }
+                    }
+                }
+                catch { }
                 
                 // Unlock DataColumns so WPF DataGrid allows editing
                 foreach (DataColumn col in result.Data.Columns)

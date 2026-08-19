@@ -124,6 +124,19 @@ namespace NertyDb.Views
 
         private void TextArea_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if ((e.Key == Key.Enter || e.Key == Key.Return) && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                e.Handled = true;
+                _completionDebounceTimer.Stop();
+                if (_completionWindow != null)
+                {
+                    _completionWindow.Close();
+                    _completionWindow = null;
+                }
+                ExecuteCurrentSqlStatement();
+                return;
+            }
+
             if (_completionWindow != null)
             {
                 // CRITICAL RULE: Space or Escape must dismiss the completion window without applying any suggestion
@@ -193,7 +206,12 @@ namespace NertyDb.Views
             if (e.Key == Key.F5)
             {
                 e.Handled = true;
-                ViewModel?.ExecuteCommand.Execute(null);
+                ExecuteCurrentSqlStatement();
+            }
+            else if ((e.Key == Key.Enter || e.Key == Key.Return) && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                e.Handled = true;
+                ExecuteCurrentSqlStatement();
             }
             else if (e.Key == Key.Space && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
@@ -204,8 +222,15 @@ namespace NertyDb.Views
             else if (e.Key == Key.E && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
                 e.Handled = true;
-                ViewModel?.ExecuteCommand.Execute(null);
+                ExecuteCurrentSqlStatement();
             }
+        }
+
+        private void ExecuteCurrentSqlStatement()
+        {
+            if (ViewModel == null) return;
+            var sqlToRun = SqlStatementExtractor.ExtractStatementToExecute(Editor.Text, Editor.CaretOffset, Editor.SelectedText);
+            ViewModel.ExecuteCommand.Execute(sqlToRun);
         }
 
         private void ShowCompletionWindow()
@@ -450,6 +475,39 @@ namespace NertyDb.Views
             if (parentObject == null) return null;
             if (parentObject is T parent) return parent;
             return FindVisualParent<T>(parentObject);
+        }
+
+        private void ResultGrid_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
+        {
+            if (sender is DataGrid grid && grid.DataContext is SqlResultTabViewModel tabVm)
+            {
+                var selectedCells = grid.SelectedCells;
+                if (selectedCells.Count == 0)
+                {
+                    tabVm.SelectionStats.Calculate(Enumerable.Empty<object?>());
+                    return;
+                }
+
+                var values = new System.Collections.Generic.List<object?>(selectedCells.Count);
+                foreach (var cell in selectedCells)
+                {
+                    if (cell.Item is DataRowView rowView)
+                    {
+                        string colName = cell.Column.SortMemberPath;
+                        if (string.IsNullOrEmpty(colName) && cell.Column.Header is string s)
+                        {
+                            colName = s.Replace("🔑 ", "").Trim();
+                        }
+
+                        if (!string.IsNullOrEmpty(colName) && rowView.Row.Table.Columns.Contains(colName))
+                        {
+                            values.Add(rowView[colName]);
+                        }
+                    }
+                }
+
+                tabVm.SelectionStats.Calculate(values);
+            }
         }
 
         #endregion

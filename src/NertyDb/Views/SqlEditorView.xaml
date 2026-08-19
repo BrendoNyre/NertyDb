@@ -114,29 +114,20 @@
                                                     <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="4,2" Margin="0,0,8,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="🔍" VerticalAlignment="Center" Margin="4,0,4,0" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" />
-                                                            <TextBox Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}" Width="120" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" />
+                                                            <TextBox Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}" Width="140" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" ToolTip="Filtrar resultados na grade" />
                                                         </StackPanel>
                                                     </Border>
-
-                                                    <Button Content="➕ Inserir Linha" Command="{Binding AddRowCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,4,0" Padding="8,2" ToolTip="Inserir nova linha editável no resultado (Insert)" />
-                                                    <Button Content="📋 Duplicar Linha" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=ResultGrid}" Margin="0,0,4,0" Padding="8,2" ToolTip="Duplicar linha selecionada (Ctrl+D)" />
-                                                    <Button Content="🗑️ Excluir Linha" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItems, ElementName=ResultGrid}" Style="{StaticResource DangerButton}" Margin="0,0,6,0" Padding="8,2" ToolTip="Marcar linha(s) para exclusão (Delete)" />
-                                                    <Button Content="📤 Exportar..." Command="{Binding ExportCommand}" Margin="0,0,6,0" Padding="8,2" ToolTip="Exportar este resultado" />
                                                 </StackPanel>
 
-                                                <!-- Right: Pending Changes and Commit/Discard -->
+                                                <!-- Right: Actions -->
                                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                                                    <Border Background="{DynamicResource DiffModifiedBgBrush}"
-                                                            BorderBrush="{DynamicResource AccentWarningBrush}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="4"
-                                                            Padding="6,2"
-                                                            Margin="0,0,4,0"
-                                                            Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}">
-                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                            <TextBlock Text="⚡" Margin="0,0,4,0" />
-                                                            <TextBlock Text="{Binding PendingBadgeText}" FontWeight="Bold" Foreground="{DynamicResource DiffModifiedFgBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                            <Button Content="💾 Salvar Alterações" Command="{Binding CommitChangesCommand}" Style="{StaticResource SuccessButton}" Padding="8,2" Margin="0,0,4,0" ToolTip="Salvar alterações pendentes no banco" />
+                                                    <Button Content="➕ Nova Linha" Command="{Binding AddRowCommand}" Padding="6,2" Margin="0,0,4,0" Style="{StaticResource PrimaryButton}" ToolTip="Inserir nova linha editável" />
+                                                    <Button Content="📤 Exportar..." Command="{Binding ExportCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Exportar resultados da aba para CSV, Excel ou JSON" />
+                                                    <Border Background="{DynamicResource DiffModifiedBgBrush}" BorderBrush="{DynamicResource AccentWarningBrush}" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="⚡" Margin="0,0,3,0" />
+                                                            <TextBlock Text="{Binding PendingBadgeText}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource DiffModifiedFgBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <Button Content="💾 Salvar" Command="{Binding CommitChangesCommand}" Style="{StaticResource SuccessButton}" Padding="6,2" Margin="0,0,2,0" ToolTip="Salvar alterações no banco de dados" />
                                                             <Button Content="↩️ Descartar" Command="{Binding DiscardChangesCommand}" Padding="6,2" ToolTip="Descartar alterações pendentes" />
                                                         </StackPanel>
                                                     </Border>
@@ -153,6 +144,7 @@
                                                   BeginningEdit="ResultGrid_BeginningEdit"
                                                   CellEditEnding="ResultGrid_CellEditEnding"
                                                   LoadingRow="ResultGrid_LoadingRow"
+                                                  SelectedCellsChanged="ResultGrid_SelectedCellsChanged"
                                                   IsReadOnly="False"
                                                   CanUserAddRows="False"
                                                   CanUserDeleteRows="False"
@@ -179,8 +171,30 @@
                                             </DataGrid.ContextMenu>
                                         </DataGrid>
 
+                                        <!-- Selection Aggregation Stats Bar (DBeaver style) -->
+                                        <Border Grid.Row="2" 
+                                                Background="{DynamicResource BgSurfaceBrush}" 
+                                                BorderBrush="{DynamicResource BorderBrush}" 
+                                                BorderThickness="0,1,0,0" 
+                                                Padding="8,3"
+                                                Visibility="{Binding SelectionStats.HasSelection, Converter={StaticResource BoolToVis}}">
+                                            <DockPanel>
+                                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                                    <Border Background="{DynamicResource AccentBrush}" CornerRadius="3" Padding="5,1" Margin="0,0,8,0">
+                                                        <TextBlock Text="📊 Seleção" FontSize="10" FontWeight="Bold" Foreground="White" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding SelectionStats.FormattedSummary}" 
+                                                               FontFamily="Consolas, Segoe UI" 
+                                                               FontSize="11" 
+                                                               FontWeight="SemiBold" 
+                                                               Foreground="{DynamicResource FgMainBrush}" 
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+
                                         <!-- Result Tab Footer -->
-                                        <Border Grid.Row="2" Background="{DynamicResource BgHeaderBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="6,2">
+                                        <Border Grid.Row="3" Background="{DynamicResource BgHeaderBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="6,2">
                                             <DockPanel>
                                                 <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource FgMutedBrush}" FontSize="10" VerticalAlignment="Center" DockPanel.Dock="Left" />
                                                 <TextBlock Text="{Binding SourceTableSummary}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" DockPanel.Dock="Right" HorizontalAlignment="Right" />

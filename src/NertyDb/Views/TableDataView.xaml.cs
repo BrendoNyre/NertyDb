@@ -72,9 +72,20 @@ namespace NertyDb.Views
             var colName = e.PropertyName;
             bool isPk = ViewModel.PrimaryKeyColumns.Contains(colName, StringComparer.OrdinalIgnoreCase);
 
-            if (isPk)
+            string headerText = isPk ? $"🔑 {colName}" : colName;
+
+            if (ViewModel.ColumnDescriptions.TryGetValue(colName, out var desc) && !string.IsNullOrWhiteSpace(desc))
             {
-                e.Column.Header = $"🔑 {colName}";
+                var textBlock = new TextBlock
+                {
+                    Text = headerText,
+                    ToolTip = $"{colName}: {desc}"
+                };
+                e.Column.Header = textBlock;
+            }
+            else
+            {
+                e.Column.Header = headerText;
             }
 
             // Set column editable state
@@ -88,6 +99,43 @@ namespace NertyDb.Views
                     b.TargetNullValue = "(NULL)";
                 }
             }
+        }
+
+        private void MainDataGrid_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
+        {
+            if (ViewModel == null) return;
+
+            var selectedCells = MainDataGrid.SelectedCells;
+            if (selectedCells.Count == 0)
+            {
+                ViewModel.SelectionStats.Calculate(Enumerable.Empty<object?>());
+                return;
+            }
+
+            var values = new System.Collections.Generic.List<object?>(selectedCells.Count);
+            foreach (var cell in selectedCells)
+            {
+                if (cell.Item is DataRowView rowView)
+                {
+                    var colHeader = cell.Column.Header;
+                    string colName = cell.Column.SortMemberPath;
+                    if (string.IsNullOrEmpty(colName) && colHeader is TextBlock tb)
+                    {
+                        colName = tb.Text.Replace("🔑 ", "").Trim();
+                    }
+                    else if (string.IsNullOrEmpty(colName) && colHeader is string s)
+                    {
+                        colName = s.Replace("🔑 ", "").Trim();
+                    }
+
+                    if (!string.IsNullOrEmpty(colName) && rowView.Row.Table.Columns.Contains(colName))
+                    {
+                        values.Add(rowView[colName]);
+                    }
+                }
+            }
+
+            ViewModel.SelectionStats.Calculate(values);
         }
 
         private void MainDataGrid_BeginningEdit(object? sender, DataGridBeginningEditEventArgs e)
