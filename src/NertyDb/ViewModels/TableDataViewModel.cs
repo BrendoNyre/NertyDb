@@ -712,6 +712,8 @@ namespace NertyDb.ViewModels
                 _driver,
                 onSuccess: async () =>
                 {
+                    ToastService.Instance.ShowSuccess($"Alterações salvas com sucesso em {Schema}.{TableName}! Grade atualizada.", "Salvo");
+                    AppLogService.Instance.LogSuccess("Grade de Dados", $"Salvas {PendingChanges.Count} alterações em {Schema}.{TableName}.");
                     await LoadDataAsync();
                 });
 

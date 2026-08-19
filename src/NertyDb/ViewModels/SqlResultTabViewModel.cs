@@ -107,11 +107,49 @@ namespace NertyDb.ViewModels
         public bool HasPendingChanges => TotalPendingCount > 0;
         public string PendingBadgeText => $"{TotalPendingCount} alteração(ões)";
 
+        private string _executedSql = string.Empty;
+        private int _pageSize = 200;
+        private bool _isRefreshing;
+
+        public string ExecutedSql
+        {
+            get => _executedSql;
+            set => SetProperty(ref _executedSql, value);
+        }
+
+        public bool IsRefreshing
+        {
+            get => _isRefreshing;
+            set => SetProperty(ref _isRefreshing, value);
+        }
+
+        public int PageSize
+        {
+            get => _pageSize;
+            set
+            {
+                if (SetProperty(ref _pageSize, value))
+                {
+                    OnPropertyChanged(nameof(PaginationSummary));
+                }
+            }
+        }
+
+        public string PaginationSummary
+        {
+            get
+            {
+                if (Data == null || Data.Rows.Count == 0) return "0 linhas";
+                return $"{Data.Rows.Count:N0} linha(s) carregada(s)";
+            }
+        }
+
         public ICommand AddRowCommand { get; }
         public ICommand DuplicateRowCommand { get; }
         public ICommand DeleteRowCommand { get; }
         public ICommand DiscardChangesCommand { get; }
         public ICommand CommitChangesCommand { get; }
+        public ICommand RefreshCommand { get; }
         public ICommand ExportCommand { get; }
 
         public SqlResultTabViewModel(
@@ -124,7 +162,8 @@ namespace NertyDb.ViewModels
             Action<PendingChangesViewModel> openPendingChangesDialog,
             Action<ExportViewModel> openExportDialog,
             string? sourceTable = null,
-            string? sourceSchema = null)
+            string? sourceSchema = null,
+            string? executedSql = null)
         {
             _connection = connection;
             _database = database;
@@ -135,6 +174,7 @@ namespace NertyDb.ViewModels
             _title = title;
             _tableName = sourceTable ?? string.Empty;
             _schema = sourceSchema ?? "dbo";
+            _executedSql = executedSql ?? string.Empty;
 
             // Unlock all columns so editing is enabled
             foreach (DataColumn col in data.Columns)
@@ -153,7 +193,44 @@ namespace NertyDb.ViewModels
             DeleteRowCommand = new RelayCommand(ExecuteDeleteRow);
             DiscardChangesCommand = new RelayCommand(ExecuteDiscardChanges, () => HasPendingChanges);
             CommitChangesCommand = new RelayCommand(ExecuteCommitChanges, () => HasPendingChanges);
+            RefreshCommand = new AsyncRelayCommand(async _ => await RefreshDataAsync());
             ExportCommand = new RelayCommand(ExecuteExport);
+        }
+
+        public async Task RefreshDataAsync()
+        {
+            if (string.IsNullOrWhiteSpace(ExecutedSql) || IsRefreshing) return;
+            IsRefreshing = true;
+
+            try
+            {
+                var result = await _driver.ExecuteQueryAsync(_connection, _database, ExecutedSql);
+                if (!result.HasError && result.Tables.Count > 0)
+                {
+                    var dt = result.Tables[0];
+                    foreach (DataColumn col in dt.Columns)
+                    {
+                        col.ReadOnly = false;
+                    }
+                    Data = dt;
+                    ToastService.Instance.ShowSuccess($"Resultado atualizado: {Data.Rows.Count:N0} linha(s).", "Atualização");
+                    AppLogService.Instance.LogSuccess("Editor SQL", $"Query atualizada: {Data.Rows.Count} linhas retornadas.");
+                }
+                else
+                {
+                    ToastService.Instance.ShowError($"Erro ao atualizar query: {result.ErrorMessage}", "Falha de Atualização");
+                    AppLogService.Instance.LogError("Editor SQL", $"Falha ao atualizar query: {result.ErrorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                ToastService.Instance.ShowError($"Exceção ao atualizar: {ex.Message}", "Erro");
+                AppLogService.Instance.LogError("Editor SQL", $"Exceção ao atualizar: {ex.Message}");
+            }
+            finally
+            {
+                IsRefreshing = false;
+            }
         }
 
         private void ResolveTableAndPkInfo()

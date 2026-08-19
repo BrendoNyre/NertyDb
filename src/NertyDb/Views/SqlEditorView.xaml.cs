@@ -15,6 +15,7 @@ using ICSharpCode.AvalonEdit.Highlighting;
 using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using NertyDb.Data;
 using NertyDb.Editor;
+using NertyDb.Services;
 using NertyDb.ViewModels;
 
 namespace NertyDb.Views
@@ -203,27 +204,158 @@ namespace NertyDb.Views
 
         private void Editor_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F5)
+            var isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            var isShift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            var isAlt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+            if (e.Key == Key.F5 || (e.Key == Key.X && isAlt))
             {
                 e.Handled = true;
                 ExecuteCurrentSqlStatement();
             }
-            else if ((e.Key == Key.Enter || e.Key == Key.Return) && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            else if ((e.Key == Key.Enter || e.Key == Key.Return) && isCtrl)
             {
                 e.Handled = true;
                 ExecuteCurrentSqlStatement();
             }
-            else if (e.Key == Key.Space && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            else if (e.Key == Key.Space && isCtrl)
             {
                 e.Handled = true;
                 _completionDebounceTimer.Stop();
                 ShowCompletionWindow();
             }
-            else if (e.Key == Key.E && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            else if (e.Key == Key.E && isCtrl)
             {
                 e.Handled = true;
                 ExecuteCurrentSqlStatement();
             }
+            else if (e.Key == Key.F && isCtrl && isShift)
+            {
+                e.Handled = true;
+                ViewModel?.FormatSqlCommand.Execute(null);
+            }
+            else if ((e.Key == Key.OemQuestion || e.Key == Key.Oem2 || e.Key == Key.Divide) && isCtrl && !isShift)
+            {
+                e.Handled = true;
+                ToggleLineComment();
+            }
+            else if ((e.Key == Key.OemQuestion || e.Key == Key.Oem2 || e.Key == Key.Divide) && isCtrl && isShift)
+            {
+                e.Handled = true;
+                ToggleBlockComment();
+            }
+            else if (e.Key == Key.Down && isCtrl && isAlt)
+            {
+                e.Handled = true;
+                DuplicateCurrentLine();
+            }
+            else if (e.Key == Key.L && isCtrl && isShift)
+            {
+                e.Handled = true;
+                DeleteCurrentLine();
+            }
+            else if (e.Key == Key.U && isCtrl && isShift && !isAlt)
+            {
+                e.Handled = true;
+                ConvertSelectionCase(toUpper: true);
+            }
+            else if (e.Key == Key.U && isCtrl && isShift && isAlt)
+            {
+                e.Handled = true;
+                ConvertSelectionCase(toUpper: false);
+            }
+        }
+
+        private void ToggleLineComment()
+        {
+            var doc = Editor.Document;
+            int startOffset = Editor.SelectionStart;
+            int length = Editor.SelectionLength;
+
+            var startLine = doc.GetLineByOffset(startOffset);
+            var endLine = doc.GetLineByOffset(Math.Min(doc.TextLength, startOffset + length));
+
+            using (doc.RunUpdate())
+            {
+                bool allCommented = true;
+                for (int i = startLine.LineNumber; i <= endLine.LineNumber; i++)
+                {
+                    var line = doc.GetLineByNumber(i);
+                    var text = doc.GetText(line.Offset, line.Length).TrimStart();
+                    if (!string.IsNullOrWhiteSpace(text) && !text.StartsWith("--"))
+                    {
+                        allCommented = false;
+                        break;
+                    }
+                }
+
+                for (int i = startLine.LineNumber; i <= endLine.LineNumber; i++)
+                {
+                    var line = doc.GetLineByNumber(i);
+                    var lineText = doc.GetText(line.Offset, line.Length);
+                    if (allCommented)
+                    {
+                        int commentIdx = lineText.IndexOf("--");
+                        if (commentIdx >= 0)
+                        {
+                            int removeLen = (commentIdx + 2 < lineText.Length && lineText[commentIdx + 2] == ' ') ? 3 : 2;
+                            doc.Remove(line.Offset + commentIdx, removeLen);
+                        }
+                    }
+                    else
+                    {
+                        doc.Insert(line.Offset, "-- ");
+                    }
+                }
+            }
+        }
+
+        private void ToggleBlockComment()
+        {
+            var doc = Editor.Document;
+            int startOffset = Editor.SelectionStart;
+            int length = Editor.SelectionLength;
+            if (length == 0) return;
+
+            var selectedText = doc.GetText(startOffset, length);
+            if (selectedText.StartsWith("/*") && selectedText.EndsWith("*/"))
+            {
+                var unwrapped = selectedText.Substring(2, selectedText.Length - 4).Trim();
+                doc.Replace(startOffset, length, unwrapped);
+            }
+            else
+            {
+                doc.Replace(startOffset, length, $"/* {selectedText} */");
+            }
+        }
+
+        private void DuplicateCurrentLine()
+        {
+            var doc = Editor.Document;
+            var line = doc.GetLineByOffset(Editor.CaretOffset);
+            var lineText = doc.GetText(line.Offset, line.Length);
+            doc.Insert(line.EndOffset, Environment.NewLine + lineText);
+        }
+
+        private void DeleteCurrentLine()
+        {
+            var doc = Editor.Document;
+            var line = doc.GetLineByOffset(Editor.CaretOffset);
+            int removeOffset = line.Offset;
+            int removeLength = line.TotalLength;
+            doc.Remove(removeOffset, removeLength);
+        }
+
+        private void ConvertSelectionCase(bool toUpper)
+        {
+            if (Editor.SelectionLength == 0) return;
+            var text = Editor.SelectedText;
+            Editor.SelectedText = toUpper ? text.ToUpperInvariant() : text.ToLowerInvariant();
+        }
+
+        private void ClearMessages_Click(object sender, RoutedEventArgs e)
+        {
+            AppLogService.Instance.Clear();
         }
 
         private void ExecuteCurrentSqlStatement()

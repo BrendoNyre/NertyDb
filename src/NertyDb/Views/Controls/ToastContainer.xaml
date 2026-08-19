@@ -1,0 +1,62 @@
+<UserControl x:Class="NertyDb.Views.Controls.ToastContainer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:services="clr-namespace:NertyDb.Services"
+             IsHitTestVisible="True"
+             Focusable="False">
+
+    <ItemsControl ItemsSource="{Binding Source={x:Static services:ToastService.Instance}, Path=ActiveToasts}">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <StackPanel Orientation="Vertical" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,16,16" />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type services:ToastItem}">
+                <Border Background="{DynamicResource BgSurfaceBrush}"
+                        BorderBrush="{Binding BorderBrushHex}"
+                        BorderThickness="1.5"
+                        CornerRadius="6"
+                        Margin="0,6,0,0"
+                        Width="360"
+                        Padding="12,10"
+                        SnapsToDevicePixels="True">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.35" BlurRadius="12" ShadowDepth="3" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Icon -->
+                        <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="18" VerticalAlignment="Top" Margin="0,0,10,0" />
+
+                        <!-- Title and Message -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="12" Foreground="{Binding HeaderColor}" Margin="0,0,0,2" />
+                            <TextBlock Text="{Binding Message}" FontSize="11" Foreground="{DynamicResource FgMainBrush}" TextWrapping="Wrap" MaxHeight="80" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+
+                        <!-- Close Button -->
+                        <Button Grid.Column="2"
+                                Content="✕"
+                                Tag="{Binding Id}"
+                                Click="CloseToast_Click"
+                                Width="20" Height="20"
+                                Padding="0"
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Top"
+                                Background="Transparent"
+                                Foreground="{DynamicResource FgMutedBrush}"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                ToolTip="Fechar notificação" />
+                    </Grid>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

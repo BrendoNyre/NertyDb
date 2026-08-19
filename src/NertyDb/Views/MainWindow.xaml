@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:NertyDb.ViewModels"
         xmlns:views="clr-namespace:NertyDb.Views"
+        xmlns:controls="clr-namespace:NertyDb.Views.Controls"
         Title="NertyDb — Cliente de Banco de Dados Senior (Portable)"
         Icon="pack://application:,,,/NertyDb;component/Resources/app_icon.ico"
         Height="780" Width="1260"
@@ -14,6 +15,7 @@
         <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewQueryTabCommand}" />
         <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding OpenConnectionsDialogCommand}" />
         <KeyBinding Key="F5" Command="{Binding RefreshAllCommand}" />
+        <KeyBinding Key="F1" Command="{Binding OpenShortcutsHelpCommand}" />
         <KeyBinding Key="W" Modifiers="Ctrl" Command="{Binding CloseTabCommand}" CommandParameter="{Binding SelectedTab}" />
     </Window.InputBindings>
 
@@ -52,7 +54,8 @@
                     </Border>
 
                     <Button Content="🌓 Tema" Command="{Binding ToggleThemeCommand}" Margin="0,0,6,0" Padding="8,5" ToolTip="Alternar tema Claro / Escuro" />
-                    <Button Content="❔ Ajuda / Atalhos" Command="{Binding OpenAboutCommand}" Margin="0,0,6,0" Padding="8,5" ToolTip="Sobre o NertyDb e atalhos" />
+                    <Button Content="⌨️ Atalhos (F1)" Command="{Binding OpenShortcutsHelpCommand}" Margin="0,0,6,0" Padding="8,5" ToolTip="Guia de atalhos de teclado (F1)" />
+                    <Button Content="❔ Sobre" Command="{Binding OpenAboutCommand}" Margin="0,0,6,0" Padding="8,5" ToolTip="Sobre o NertyDb" />
                 </StackPanel>
 
                 <!-- Right Info Bar: Active Connection Indicator -->
@@ -237,9 +240,12 @@
                 <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource FgSecondaryBrush}" FontSize="11" DockPanel.Dock="Left" VerticalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                     <TextBlock Text="{Binding ServerVersion}" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" Margin="0,0,16,0" />
-                    <TextBlock Text="NertyDb v1.1 Portable" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" />
+                    <TextBlock Text="NertyDb v1.3.0 Portable" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" />
                 </StackPanel>
             </DockPanel>
         </Border>
+
+        <!-- Toast Notifications Overlay (Floating bottom-right) -->
+        <controls:ToastContainer Grid.Row="0" Grid.RowSpan="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,36" Panel.ZIndex="999" IsHitTestVisible="True" />
     </Grid>
 </Window>

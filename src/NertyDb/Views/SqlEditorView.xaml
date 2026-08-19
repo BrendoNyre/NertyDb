@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:vm="clr-namespace:NertyDb.ViewModels"
+             xmlns:services="clr-namespace:NertyDb.Services"
              Background="{DynamicResource BgMainBrush}"
              Foreground="{DynamicResource FgMainBrush}">
 
@@ -105,29 +106,33 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
-                                        <!-- Result Tab Actions Bar -->
+                                        <!-- Result Tab Actions Bar (DBeaver style) -->
                                         <Border Grid.Row="0" Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,4">
                                             <DockPanel>
-                                                <!-- Left: Actions for this Result Tab -->
+                                                <!-- Left: DBeaver Navigation & Data Actions -->
                                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                                     <!-- Quick Search Filter in Result -->
-                                                    <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="4,2" Margin="0,0,8,0">
+                                                    <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="4,2" Margin="0,0,6,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="🔍" VerticalAlignment="Center" Margin="4,0,4,0" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" />
-                                                            <TextBox Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}" Width="140" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" ToolTip="Filtrar resultados na grade" />
+                                                            <TextBox Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}" Width="130" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" ToolTip="Filtrar resultados na grade" />
                                                         </StackPanel>
                                                     </Border>
+
+                                                    <Button Content="🔄 Atualizar" Command="{Binding RefreshCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Reexecutar consulta e atualizar dados da grade" />
+                                                    <Button Content="➕ Inserir" Command="{Binding AddRowCommand}" Padding="6,2" Margin="0,0,4,0" Style="{StaticResource PrimaryButton}" ToolTip="Inserir nova linha na grade (Insert)" />
+                                                    <Button Content="📋 Duplicar" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=ResultGrid}" Padding="6,2" Margin="0,0,4,0" ToolTip="Duplicar linha selecionada (Ctrl+Alt+Down)" />
+                                                    <Button Content="🗑️ Excluir" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItems, ElementName=ResultGrid}" Padding="6,2" Margin="0,0,4,0" Style="{StaticResource DangerButton}" ToolTip="Marcar linha(s) selecionada(s) para exclusão (Delete)" />
+                                                    <Button Content="📤 Exportar..." Command="{Binding ExportCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Exportar resultados da aba para CSV, Excel ou JSON" />
                                                 </StackPanel>
 
-                                                <!-- Right: Actions -->
+                                                <!-- Right: Commit / Discard Actions -->
                                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                                                    <Button Content="➕ Nova Linha" Command="{Binding AddRowCommand}" Padding="6,2" Margin="0,0,4,0" Style="{StaticResource PrimaryButton}" ToolTip="Inserir nova linha editável" />
-                                                    <Button Content="📤 Exportar..." Command="{Binding ExportCommand}" Padding="6,2" Margin="0,0,4,0" ToolTip="Exportar resultados da aba para CSV, Excel ou JSON" />
                                                     <Border Background="{DynamicResource DiffModifiedBgBrush}" BorderBrush="{DynamicResource AccentWarningBrush}" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVis}}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="⚡" Margin="0,0,3,0" />
                                                             <TextBlock Text="{Binding PendingBadgeText}" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource DiffModifiedFgBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                            <Button Content="💾 Salvar" Command="{Binding CommitChangesCommand}" Style="{StaticResource SuccessButton}" Padding="6,2" Margin="0,0,2,0" ToolTip="Salvar alterações no banco de dados" />
+                                                            <Button Content="💾 Salvar" Command="{Binding CommitChangesCommand}" Style="{StaticResource SuccessButton}" Padding="6,2" Margin="0,0,2,0" ToolTip="Salvar alterações no banco de dados (Ctrl+S)" />
                                                             <Button Content="↩️ Descartar" Command="{Binding DiscardChangesCommand}" Padding="6,2" ToolTip="Descartar alterações pendentes" />
                                                         </StackPanel>
                                                     </Border>
@@ -159,6 +164,8 @@
                                                   SelectionMode="Extended">
                                             <DataGrid.ContextMenu>
                                                 <ContextMenu>
+                                                    <MenuItem Header="🔄 Atualizar Resultado" Command="{Binding RefreshCommand}" />
+                                                    <Separator />
                                                     <MenuItem Header="➕ Inserir Nova Linha" Command="{Binding AddRowCommand}" />
                                                     <MenuItem Header="📋 Duplicar Linha Selecionada" Command="{Binding DuplicateRowCommand}" CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                                     <MenuItem Header="🗑️ Marcar Linha(s) para Exclusão" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
@@ -167,6 +174,8 @@
                                                     <MenuItem Header="📋 Copiar Célula" Click="CopyResultCell_Click" />
                                                     <MenuItem Header="📑 Copiar Linha(s) como CSV" Click="CopyResultRowsCsv_Click" />
                                                     <MenuItem Header="💾 Copiar Linha(s) como INSERT SQL" Click="CopyResultRowsSql_Click" />
+                                                    <Separator />
+                                                    <MenuItem Header="📤 Exportar Dados..." Command="{Binding ExportCommand}" />
                                                 </ContextMenu>
                                             </DataGrid.ContextMenu>
                                         </DataGrid>
@@ -210,26 +219,68 @@
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock Text="💡 Dica de Suporte Senior" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" Margin="0,0,0,6" />
                                 <TextBlock Text="Escreva suas consultas SQL ou selecione um modelo no menu 'Modelos Senior'." Foreground="{DynamicResource FgSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,4" />
-                                <TextBlock Text="Atalhos: F5 (Executar) | Ctrl+Espaço (Autocomplete de tabelas e colunas)" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" />
+                                <TextBlock Text="Atalhos: F5 (Executar) | Ctrl+Espaço (Autocomplete de tabelas e colunas) | F1 (Guia de Atalhos)" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" />
                             </StackPanel>
                         </Border>
                     </Grid>
                 </TabItem>
 
-                <!-- Messages / Logs Tab -->
+                <!-- Messages / Structured Logs Tab -->
                 <TabItem Header="💬 Mensagens">
                     <Grid Background="{DynamicResource BgInputBrush}">
-                        <TextBox Text="{Binding MessagesText}"
-                                 IsReadOnly="True"
-                                 FontFamily="{StaticResource CodeFont}"
-                                 FontSize="12"
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Messages Toolbar -->
+                        <Border Grid.Row="0" Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,4">
+                            <DockPanel>
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                    <TextBlock Text="Registro estruturado de execuções, avisos e erros" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                    <Button Content="🗑️ Limpar Mensagens" Click="ClearMessages_Click" Padding="6,2" ToolTip="Limpar histórico de mensagens" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Structured Log List -->
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding Source={x:Static services:AppLogService.Instance}, Path=Entries}"
                                  Background="Transparent"
-                                 Foreground="{DynamicResource FgMainBrush}"
                                  BorderThickness="0"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto"
-                                 Padding="8" />
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="2,2,2,2" Padding="6,4" Background="{DynamicResource BgSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Level Badge -->
+                                            <Border Grid.Column="0" Background="{Binding BadgeBackground}" CornerRadius="3" Padding="4,1" Margin="0,0,6,0" VerticalAlignment="Top">
+                                                <TextBlock Text="{Binding LevelText}" FontSize="10" FontWeight="Bold" Foreground="White" />
+                                            </Border>
+                                            <!-- Timestamp and Source -->
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,8,0" VerticalAlignment="Top">
+                                                <TextBlock Text="{Binding FormattedTimestamp}" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" FontFamily="Consolas" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                                <TextBlock Text="{Binding Source}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <!-- Message and Details -->
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Message}" FontSize="11" Foreground="{DynamicResource FgMainBrush}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Details}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource FgMutedBrush}" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
                 </TabItem>
             </TabControl>

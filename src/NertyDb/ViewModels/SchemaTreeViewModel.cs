@@ -588,7 +588,10 @@ namespace NertyDb.ViewModels
             // 1. Table or View leaf nodes
             if (node.NodeType == SchemaNodeType.Table || node.NodeType == SchemaNodeType.View)
             {
-                bool matches = IsFuzzyMatch(node.Title, term) || IsFuzzyMatch(node.Schema, term);
+                bool matches = IsFuzzyMatch(node.Title, term) || 
+                               IsFuzzyMatch(node.Schema, term) || 
+                               (!string.IsNullOrEmpty(node.Description) && IsFuzzyMatch(node.Description, term)) ||
+                               (!string.IsNullOrEmpty(node.SubTitle) && IsFuzzyMatch(node.SubTitle, term));
                 if (!matches) return null;
 
                 var tableCopy = new SchemaNode

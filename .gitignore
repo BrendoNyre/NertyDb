@@ -27,3 +27,4 @@ $RECYCLE.BIN/
 *.log
 data/
 error.log
+scratch/

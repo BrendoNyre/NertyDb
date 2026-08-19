@@ -18,6 +18,7 @@ namespace NertyDb.ViewModels
         private readonly Action<ExportViewModel> _openExportDialog;
         private readonly Action<ConnectionViewModel> _openConnectionDialog;
         private readonly Action _openAboutDialog;
+        private readonly Action _openShortcutsHelpDialog;
         private readonly Action<string> _applyTheme;
 
         private ConnectionProfile? _activeConnection;
@@ -127,6 +128,7 @@ namespace NertyDb.ViewModels
         public ICommand CloseAllTabsCommand { get; }
         public ICommand ToggleThemeCommand { get; }
         public ICommand OpenAboutCommand { get; }
+        public ICommand OpenShortcutsHelpCommand { get; }
         public ICommand RefreshAllCommand { get; }
         public ICommand ToggleAutoCommitCommand { get; }
         public ICommand CommitActiveTabCommand { get; }
@@ -139,6 +141,7 @@ namespace NertyDb.ViewModels
             Action<ExportViewModel> openExportDialog,
             Action<ConnectionViewModel> openConnectionDialog,
             Action openAboutDialog,
+            Action openShortcutsHelpDialog,
             Action<string> applyTheme)
         {
             _storageService = storageService;
@@ -147,6 +150,7 @@ namespace NertyDb.ViewModels
             _openExportDialog = openExportDialog;
             _openConnectionDialog = openConnectionDialog;
             _openAboutDialog = openAboutDialog;
+            _openShortcutsHelpDialog = openShortcutsHelpDialog;
             _applyTheme = applyTheme;
 
             DocumentTabs.CollectionChanged += (s, e) =>
@@ -158,6 +162,8 @@ namespace NertyDb.ViewModels
             SchemaTree = new SchemaTreeViewModel(
                 onOpenTable: OpenTableDataTab,
                 onNewQueryWithSql: OpenQueryTabWithSql);
+
+            OpenShortcutsHelpCommand = new RelayCommand(() => _openShortcutsHelpDialog());
 
             OpenConnectionsDialogCommand = new RelayCommand(() =>
             {

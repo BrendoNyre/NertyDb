@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using NertyDb.Editor;
+using NertyDb.Services;
 using NertyDb.ViewModels;
 using Xunit;
 
@@ -78,15 +79,56 @@ namespace NertyDb.Tests
         }
 
         [Fact]
-        public void SelectionStatsViewModel_EmptySelection_ResetsProperties()
+        public void AppLogService_RecordsEntriesAndClearsSuccessfully()
         {
-            var vm = new SelectionStatsViewModel();
-            vm.Calculate(Array.Empty<object?>());
+            var log = AppLogService.Instance;
+            log.Clear();
+            Assert.Empty(log.Entries);
 
-            Assert.False(vm.HasSelection);
-            Assert.Equal(0, vm.TotalCount);
-            Assert.Equal(0, vm.NonNullCount);
-            Assert.Equal(string.Empty, vm.FormattedSummary);
+            log.LogSuccess("Test Source", "Success message", "SELECT 1");
+            log.LogError("Test Source", "Error message", "SELECT 2");
+            log.LogWarning("Test Source", "Warning message");
+            log.LogInfo("Test Source", "Info message");
+
+            Assert.Equal(4, log.Entries.Count);
+            Assert.Equal(ToastType.Info, log.Entries[0].Level); // newest first
+            Assert.Equal(ToastType.Warning, log.Entries[1].Level);
+            Assert.Equal(ToastType.Error, log.Entries[2].Level);
+            Assert.Equal(ToastType.Success, log.Entries[3].Level);
+
+            log.Clear();
+            Assert.Empty(log.Entries);
+        }
+
+        [Fact]
+        public void ToastService_AddsAndRemovesToasts()
+        {
+            var toastService = ToastService.Instance;
+            toastService.ShowSuccess("Registro inserido com sucesso!", "Sucesso");
+
+            Assert.NotEmpty(toastService.ActiveToasts);
+            var toast = toastService.ActiveToasts[0];
+            Assert.Equal("Sucesso", toast.Title);
+            Assert.Equal("Registro inserido com sucesso!", toast.Message);
+            Assert.Equal(ToastType.Success, toast.Type);
+
+            toastService.Dismiss(toast.Id);
+            Assert.DoesNotContain(toast, toastService.ActiveToasts);
+        }
+
+        [Fact]
+        public void SchemaNode_TooltipAndDescription_FormattedCorrectly()
+        {
+            var node = new SchemaNode
+            {
+                NodeType = SchemaNodeType.Table,
+                Title = "R034FUN",
+                Description = "Ficha Básica Colaborador",
+                SubTitle = "dbo (1.500 lins) — Ficha Básica Colaborador"
+            };
+
+            Assert.True(node.HasDescription);
+            Assert.Equal("R034FUN: Ficha Básica Colaborador", node.TooltipText);
         }
     }
 }

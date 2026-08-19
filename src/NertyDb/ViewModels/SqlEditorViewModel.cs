@@ -219,7 +219,8 @@ namespace NertyDb.ViewModels
                         _openPendingChangesDialog,
                         _openExportDialog,
                         sourceTable: detectedTable,
-                        sourceSchema: "dbo");
+                        sourceSchema: "dbo",
+                        executedSql: sql);
 
                     ResultTabs.Add(tabVm);
                 }
@@ -238,10 +239,15 @@ namespace NertyDb.ViewModels
                 {
                     StatusText = $"Erro: {result.ErrorMessage}";
                     msgSb.AppendLine($"❌ Erro: {result.ErrorMessage}");
+                    ToastService.Instance.ShowError($"Erro SQL: {result.ErrorMessage}", "Erro na Consulta");
+                    AppLogService.Instance.LogError("Editor SQL", $"Erro: {result.ErrorMessage}", sql);
                 }
                 else
                 {
+                    int totalRows = result.Tables.Sum(t => t.Rows.Count);
                     StatusText = $"Executado em {result.DurationMs} ms. {result.Tables.Count} conjunto(s) retornado(s).";
+                    ToastService.Instance.ShowSuccess($"Query executada em {result.DurationMs} ms ({totalRows:N0} linhas)", "Sucesso");
+                    AppLogService.Instance.LogSuccess("Editor SQL", $"Query concluída em {result.DurationMs} ms. Retornou {totalRows:N0} linhas.", sql);
                 }
 
                 foreach (var msg in result.Messages)
@@ -273,12 +279,16 @@ namespace NertyDb.ViewModels
                 sw.Stop();
                 StatusText = "Consulta cancelada pelo usuário.";
                 MessagesText = $"[{DateTime.Now:HH:mm:ss}] ⚠️ Execução cancelada pelo usuário após {sw.ElapsedMilliseconds} ms.";
+                ToastService.Instance.ShowWarning("Execução cancelada pelo usuário.", "Cancelado");
+                AppLogService.Instance.LogWarning("Editor SQL", "Execução cancelada pelo usuário.", sql);
             }
             catch (Exception ex)
             {
                 sw.Stop();
                 StatusText = $"Erro: {ex.Message}";
                 MessagesText = $"[{DateTime.Now:HH:mm:ss}] ❌ Exceção: {ex.Message}";
+                ToastService.Instance.ShowError($"Exceção: {ex.Message}", "Erro de Execução");
+                AppLogService.Instance.LogError("Editor SQL", $"Exceção: {ex.Message}", sql);
             }
             finally
             {

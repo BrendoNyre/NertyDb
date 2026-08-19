@@ -9,6 +9,9 @@
     <ApplicationTitle>NertyDb - Cliente de Banco de Dados Senior</ApplicationTitle>
     <AssemblyName>NertyDb</AssemblyName>
     <RootNamespace>NertyDb</RootNamespace>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <FileVersion>1.3.0.0</FileVersion>
     
     <!-- Single File / Self-Contained Publishing Config -->
     <PublishSingleFile>true</PublishSingleFile>

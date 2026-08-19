@@ -40,6 +40,11 @@ namespace NertyDb.Views
                     var dlg = new AboutDialog { Owner = this };
                     dlg.ShowDialog();
                 },
+                openShortcutsHelpDialog: () =>
+                {
+                    var dlg = new ShortcutsHelpDialog { Owner = this };
+                    dlg.ShowDialog();
+                },
                 applyTheme: (theme) =>
                 {
                     App.ApplyTheme(theme);
