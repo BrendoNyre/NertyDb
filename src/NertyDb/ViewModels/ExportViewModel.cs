@@ -187,8 +187,9 @@ namespace NertyDb.ViewModels
             {
                 var options = BuildOptions();
                 var csv = _exportService.FormatCsvString(_table, options);
-                System.Windows.Clipboard.SetText(csv);
+                ClipboardHelper.SetText(csv);
                 StatusMessage = "Dados formatados copiados para a Área de Transferência!";
+                ToastService.Instance.ShowSuccess("Dados copiados para a área de transferência.", "Copiado");
             });
 
             UpdatePreview();

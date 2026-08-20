@@ -48,6 +48,60 @@ namespace NertyDb.Views
             Editor.TextArea.PreviewKeyDown += TextArea_PreviewKeyDown;
             Editor.TextArea.TextEntered += TextArea_TextEntered;
             Editor.KeyDown += Editor_KeyDown;
+
+            // Safe Clipboard Commands for AvalonEdit (prevents COMException crash when clipboard is locked)
+            Editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Copy, SafeCopyExecuted, SafeCopyCanExecute));
+            Editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Cut, SafeCutExecuted, SafeCutCanExecute));
+            Editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Paste, SafePasteExecuted, SafePasteCanExecute));
+        }
+
+        private void SafeCopyExecuted(object sender, ExecutedRoutedEventArgs e)
+        {
+            var selected = Editor.SelectedText;
+            if (!string.IsNullOrEmpty(selected))
+            {
+                ClipboardHelper.SetText(selected);
+            }
+            e.Handled = true;
+        }
+
+        private void SafeCopyCanExecute(object sender, CanExecuteRoutedEventArgs e)
+        {
+            e.CanExecute = Editor != null && Editor.SelectionLength > 0;
+            e.Handled = true;
+        }
+
+        private void SafeCutExecuted(object sender, ExecutedRoutedEventArgs e)
+        {
+            var selected = Editor.SelectedText;
+            if (!string.IsNullOrEmpty(selected))
+            {
+                ClipboardHelper.SetText(selected);
+                Editor.SelectedText = string.Empty;
+            }
+            e.Handled = true;
+        }
+
+        private void SafeCutCanExecute(object sender, CanExecuteRoutedEventArgs e)
+        {
+            e.CanExecute = Editor != null && !Editor.IsReadOnly && Editor.SelectionLength > 0;
+            e.Handled = true;
+        }
+
+        private void SafePasteExecuted(object sender, ExecutedRoutedEventArgs e)
+        {
+            var text = ClipboardHelper.GetText();
+            if (!string.IsNullOrEmpty(text) && !Editor.IsReadOnly)
+            {
+                Editor.SelectedText = text;
+            }
+            e.Handled = true;
+        }
+
+        private void SafePasteCanExecute(object sender, CanExecuteRoutedEventArgs e)
+        {
+            e.CanExecute = Editor != null && !Editor.IsReadOnly && ClipboardHelper.ContainsText();
+            e.Handled = true;
         }
 
         private static IHighlightingDefinition? _cachedSqlHighlighting;
@@ -361,7 +415,8 @@ namespace NertyDb.Views
         private void ExecuteCurrentSqlStatement()
         {
             if (ViewModel == null) return;
-            var sqlToRun = SqlStatementExtractor.ExtractStatementToExecute(Editor.Text, Editor.CaretOffset, Editor.SelectedText);
+            var selected = Editor.SelectedText;
+            var sqlToRun = !string.IsNullOrWhiteSpace(selected) ? selected : Editor.Text;
             ViewModel.ExecuteCommand.Execute(sqlToRun);
         }
 
@@ -507,9 +562,9 @@ namespace NertyDb.Views
 
         private void HandleGridPaste(DataGrid grid, SqlResultTabViewModel vm)
         {
-            if (grid == null || vm == null || !Clipboard.ContainsText()) return;
+            if (grid == null || vm == null || !ClipboardHelper.ContainsText()) return;
 
-            var clipboardText = Clipboard.GetText();
+            var clipboardText = ClipboardHelper.GetText();
             if (string.IsNullOrEmpty(clipboardText)) return;
 
             var selectedCells = grid.SelectedCells.ToList();
@@ -741,7 +796,7 @@ namespace NertyDb.Views
                     if (!string.IsNullOrEmpty(colHeader))
                     {
                         var val = rowView[colHeader]?.ToString() ?? "";
-                        Clipboard.SetText(val);
+                        ClipboardHelper.SetText(val);
                     }
                 }
             }
@@ -767,7 +822,7 @@ namespace NertyDb.Views
                     sb.AppendLine(line);
                 }
 
-                Clipboard.SetText(sb.ToString());
+                ClipboardHelper.SetText(sb.ToString());
             }
         }
 
@@ -792,7 +847,7 @@ namespace NertyDb.Views
                     sb.AppendLine($"INSERT INTO {DmlGenerator.EscapeIdentifier(vm.Schema)}.{DmlGenerator.EscapeIdentifier(tblName)} ({colNames}) VALUES ({string.Join(", ", valList)});");
                 }
 
-                Clipboard.SetText(sb.ToString());
+                ClipboardHelper.SetText(sb.ToString());
             }
         }
 

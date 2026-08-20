@@ -411,6 +411,7 @@ namespace NertyDb.ViewModels
                         : sn.Title;
 
                     ClipboardHelper.SetText(textToCopy);
+                    ToastService.Instance.ShowSuccess($"Nome copiado: {textToCopy}", "Área de Transferência");
                 }
             }, (node) => node is SchemaNode);
         }

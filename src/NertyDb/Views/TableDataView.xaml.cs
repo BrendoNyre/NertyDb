@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -7,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using NertyDb.Data;
+using NertyDb.Services;
 using NertyDb.ViewModels;
 
 namespace NertyDb.Views
@@ -200,9 +202,9 @@ namespace NertyDb.Views
 
         private void HandleGridPaste()
         {
-            if (ViewModel == null || !Clipboard.ContainsText()) return;
+            if (ViewModel == null || !ClipboardHelper.ContainsText()) return;
 
-            var clipboardText = Clipboard.GetText();
+            var clipboardText = ClipboardHelper.GetText();
             if (string.IsNullOrEmpty(clipboardText)) return;
 
             var selectedCells = MainDataGrid.SelectedCells.ToList();
@@ -412,7 +414,7 @@ namespace NertyDb.Views
             {
                 var colName = MainDataGrid.CurrentCell.Column.Header?.ToString()?.Replace("🔑 ", "").Trim() ?? MainDataGrid.CurrentCell.Column.SortMemberPath;
                 var val = rowView.Row[colName];
-                Clipboard.SetText(val == DBNull.Value ? "" : val.ToString() ?? "");
+                ClipboardHelper.SetText(val == DBNull.Value ? "" : val.ToString() ?? "");
             }
         }
 
@@ -444,7 +446,7 @@ namespace NertyDb.Views
                 sb.AppendLine(string.Join(";", vals));
             }
 
-            Clipboard.SetText(sb.ToString());
+            ClipboardHelper.SetText(sb.ToString());
         }
 
         private void CopyRowsSql_Click(object sender, RoutedEventArgs e)
@@ -469,7 +471,7 @@ namespace NertyDb.Views
                 sb.AppendLine($"INSERT INTO {DmlGenerator.EscapeIdentifier(ViewModel.Schema)}.{DmlGenerator.EscapeIdentifier(ViewModel.TableName)} ({colNames}) VALUES ({string.Join(", ", valList)});");
             }
 
-            Clipboard.SetText(sb.ToString());
+            ClipboardHelper.SetText(sb.ToString());
         }
 
         private void DiscardRow_Click(object sender, RoutedEventArgs e)

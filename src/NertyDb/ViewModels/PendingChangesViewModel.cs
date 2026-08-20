@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using NertyDb.Data;
 using NertyDb.Models;
+using NertyDb.Services;
 
 namespace NertyDb.ViewModels
 {
@@ -104,8 +105,9 @@ namespace NertyDb.ViewModels
             {
                 if (!string.IsNullOrEmpty(GeneratedSqlScript))
                 {
-                    System.Windows.Clipboard.SetText(GeneratedSqlScript);
+                    ClipboardHelper.SetText(GeneratedSqlScript);
                     StatusMessage = "Script SQL copiado para a Área de Transferência!";
+                    ToastService.Instance.ShowSuccess("Script SQL copiado com sucesso.", "Copiado");
                 }
             });
         }

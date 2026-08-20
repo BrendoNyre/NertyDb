@@ -1,10 +1,10 @@
 # ⚡ NertyDb — Cliente de Banco de Dados Senior & DBeaver-Inspired
 
-[![Download NertyDb Portable](https://img.shields.io/badge/Download-NertyDb.exe_(Portable_v1.3.0)-blue?style=for-the-badge&logo=windows)](https://github.com/BrendoNyre/NertyDb/releases/download/v1.3.0/NertyDb-v1.3.0-Portable.exe)
-[![GitHub Release](https://img.shields.io/github/v/release/BrendoNyre/NertyDb?style=for-the-badge&color=green)](https://github.com/BrendoNyre/NertyDb/releases/tag/v1.3.0)
+[![Download NertyDb Portable](https://img.shields.io/badge/Download-NertyDb.exe_(Portable_v1.4.0)-blue?style=for-the-badge&logo=windows)](https://github.com/BrendoNyre/NertyDb/releases/download/v1.4.0/NertyDb-v1.4.0-Portable.exe)
+[![GitHub Release](https://img.shields.io/github/v/release/BrendoNyre/NertyDb?style=for-the-badge&color=green)](https://github.com/BrendoNyre/NertyDb/releases/tag/v1.4.0)
 [![Developer Guide](https://img.shields.io/badge/Documentação-Guia_do_Desenvolvedor-orange?style=for-the-badge)](./DEVELOPER_GUIDE.md)
 
-> 🚀 **[Clique aqui para Baixar o Executável Direto (`NertyDb.exe` v1.3.0)](https://github.com/BrendoNyre/NertyDb/releases/tag/v1.3.0)** — *100% portable, executável único pronto para uso, sem instalador e sem necessidade de pré-instalar o .NET em nenhum computador.*
+> 🚀 **[Clique aqui para Baixar o Executável Direto (`NertyDb.exe` v1.4.0)](https://github.com/BrendoNyre/NertyDb/releases/tag/v1.4.0)** — *100% portable, executável único pronto para uso, sem instalador e sem necessidade de pré-instalar o .NET em nenhum computador.*
 
 O **NertyDb** é um cliente de banco de dados desktop **100% portable para Windows** (executável único `.exe`, sem instalador e sem dependências externas no servidor do cliente), desenvolvido com foco nas rotinas de suporte, consulta e análise dos sistemas **Senior** (Gestão de Ponto, Controle de Ponto e Ronda, Acesso, HCM, ERP, etc.), com suporte nativo a **Microsoft SQL Server** e **Oracle Database**.
 

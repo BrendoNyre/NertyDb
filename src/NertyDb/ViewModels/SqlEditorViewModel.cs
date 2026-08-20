@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using NertyDb.Data;
+using NertyDb.Editor;
 using NertyDb.Models;
 using NertyDb.Services;
 
@@ -192,95 +193,171 @@ namespace NertyDb.ViewModels
         {
             if (string.IsNullOrWhiteSpace(sql)) return;
 
+            var statements = SqlScriptParser.ParseStatements(sql);
+            if (statements.Count == 0) return;
+
             _cts?.Cancel();
             _cts = new CancellationTokenSource();
             IsExecuting = true;
-            StatusText = "Executando consulta...";
+            StatusText = $"Executando {statements.Count} comando(s)...";
             ResultTabs.Clear();
             OnPropertyChanged(nameof(HasResults));
 
-            var sw = Stopwatch.StartNew();
+            var swTotal = Stopwatch.StartNew();
+            var msgSb = new StringBuilder();
+            msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] Iniciando execução de {statements.Count} comando(s)...");
+
+            long totalDuration = 0;
+            int totalRows = 0;
+            int totalAffected = 0;
+            bool hasAnyError = false;
+            string? firstErrorMessage = null;
+            int tabIndexCounter = 1;
 
             try
             {
-                var result = await _driver.ExecuteQueryAsync(Connection, Database, sql, timeoutSeconds: 30, maxRows: PageSize, cancellationToken: _cts.Token);
-                sw.Stop();
-
-                LastDurationMs = result.DurationMs;
-                TotalRowsAffected = result.TotalRowsAffected;
-
-                var tableInfo = ExtractTableInfo(sql);
-
-                // Add result tables as editable SqlResultTabViewModel
-                for (int i = 0; i < result.Tables.Count; i++)
+                foreach (var stmt in statements)
                 {
-                    var dt = result.Tables[i];
-                    var title = result.Tables.Count > 1 ? $"Resultado {i + 1}" : (string.IsNullOrEmpty(tableInfo.Table) ? "Resultado 1" : tableInfo.Table);
-                    
-                    var tabVm = new SqlResultTabViewModel(
-                        dt,
-                        title,
+                    if (_cts.Token.IsCancellationRequested)
+                    {
+                        msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] ⚠️ Execução interrompida antes do comando #{stmt.Index}.");
+                        break;
+                    }
+
+                    StatusText = $"Executando comando {stmt.Index} de {statements.Count} ({stmt.CommandType})...";
+
+                    var result = await _driver.ExecuteQueryAsync(
                         Connection,
                         Database,
-                        _driver,
-                        _exportService,
-                        _openPendingChangesDialog,
-                        _openExportDialog,
-                        sourceTable: tableInfo.Table,
-                        sourceSchema: tableInfo.Schema,
-                        executedSql: sql,
-                        isReadOnly: !tableInfo.IsSingleTable,
-                        isReadOnlyReason: tableInfo.ReadOnlyReason,
-                        pageSize: PageSize,
-                        durationMs: result.DurationMs);
+                        stmt.Sql,
+                        timeoutSeconds: 30,
+                        maxRows: PageSize,
+                        cancellationToken: _cts.Token);
 
-                    ResultTabs.Add(tabVm);
+                    totalDuration += result.DurationMs;
+
+                    if (result.HasError)
+                    {
+                        hasAnyError = true;
+                        firstErrorMessage ??= result.ErrorMessage;
+
+                        msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] ❌ Erro no comando #{stmt.Index} [{stmt.CommandType}]:");
+                        msgSb.AppendLine($"   SQL: {stmt.Sql}");
+                        msgSb.AppendLine($"   Mensagem do banco: {result.ErrorMessage}");
+
+                        AppLogService.Instance.LogError("Editor SQL", $"Erro no comando #{stmt.Index} [{stmt.CommandType}]: {result.ErrorMessage}", stmt.Sql);
+
+                        // Interrompe a execução dos statements subsequentes em caso de erro
+                        break;
+                    }
+
+                    // Se retornou tabelas / registros (ex: SELECT)
+                    if (result.Tables.Count > 0)
+                    {
+                        var tableInfo = ExtractTableInfo(stmt.Sql);
+
+                        for (int i = 0; i < result.Tables.Count; i++)
+                        {
+                            var dt = result.Tables[i];
+                            totalRows += dt.Rows.Count;
+
+                            string title;
+                            if (statements.Count > 1)
+                            {
+                                var name = !string.IsNullOrEmpty(tableInfo.Table) ? tableInfo.Table : $"Resultado {tabIndexCounter}";
+                                title = $"#{stmt.Index}: {name}";
+                            }
+                            else
+                            {
+                                title = result.Tables.Count > 1 
+                                    ? $"Resultado {i + 1}" 
+                                    : (string.IsNullOrEmpty(tableInfo.Table) ? "Resultado 1" : tableInfo.Table);
+                            }
+
+                            var tabVm = new SqlResultTabViewModel(
+                                dt,
+                                title,
+                                Connection,
+                                Database,
+                                _driver,
+                                _exportService,
+                                _openPendingChangesDialog,
+                                _openExportDialog,
+                                sourceTable: tableInfo.Table,
+                                sourceSchema: tableInfo.Schema,
+                                executedSql: stmt.Sql,
+                                isReadOnly: !tableInfo.IsSingleTable,
+                                isReadOnlyReason: tableInfo.ReadOnlyReason,
+                                pageSize: PageSize,
+                                durationMs: result.DurationMs);
+
+                            ResultTabs.Add(tabVm);
+                            tabIndexCounter++;
+                        }
+
+                        msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] #{stmt.Index} ({stmt.CommandType}): {result.Tables.Count} conjunto(s) de dados retornado(s) ({result.Tables.Sum(t => t.Rows.Count):N0} linha(s)) em {result.DurationMs} ms.");
+                        AppLogService.Instance.LogSuccess("Editor SQL", $"Comando #{stmt.Index} [{stmt.CommandType}] retornou {result.Tables.Sum(t => t.Rows.Count):N0} linhas em {result.DurationMs} ms.", stmt.Sql);
+                    }
+                    else
+                    {
+                        // Comandos DML / DDL (UPDATE, DELETE, INSERT, CREATE, etc.)
+                        int affected = result.TotalRowsAffected >= 0 ? result.TotalRowsAffected : 0;
+                        totalAffected += affected;
+
+                        msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] #{stmt.Index} ({stmt.CommandType}): {affected:N0} linha(s) afetada(s) em {result.DurationMs} ms.");
+                        AppLogService.Instance.LogSuccess("Editor SQL", $"Comando #{stmt.Index} [{stmt.CommandType}] concluiu: {affected:N0} linhas afetadas em {result.DurationMs} ms.", stmt.Sql);
+                    }
+
+                    // Mensagens extras do driver
+                    foreach (var msg in result.Messages)
+                    {
+                        if (!msg.StartsWith("Comando(s) concluído(s)"))
+                        {
+                            msgSb.AppendLine($"   ℹ️ {msg}");
+                        }
+                    }
                 }
+
+                swTotal.Stop();
+                LastDurationMs = swTotal.ElapsedMilliseconds;
+                TotalRowsAffected = totalAffected > 0 ? totalAffected : totalRows;
 
                 OnPropertyChanged(nameof(HasResults));
+                SelectedResultTabIndex = ResultTabs.Count > 0 ? 0 : -1;
 
-                var msgSb = new StringBuilder();
-                msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] Consulta executada com sucesso em {result.DurationMs} ms.");
-
-                if (result.TotalRowsAffected >= 0)
+                if (hasAnyError)
                 {
-                    msgSb.AppendLine($"Linhas afetadas: {result.TotalRowsAffected:N0}");
-                }
-
-                if (result.HasError)
-                {
-                    StatusText = $"Erro: {result.ErrorMessage}";
-                    msgSb.AppendLine($"❌ Erro: {result.ErrorMessage}");
-                    ToastService.Instance.ShowError($"Erro SQL: {result.ErrorMessage}", "Erro na Consulta");
-                    AppLogService.Instance.LogError("Editor SQL", $"Erro: {result.ErrorMessage}", sql);
+                    StatusText = $"Erro: {firstErrorMessage}";
+                    ToastService.Instance.ShowError($"Falha na execução: {firstErrorMessage}", "Erro SQL");
                 }
                 else
                 {
-                    int totalRows = result.Tables.Sum(t => t.Rows.Count);
-                    StatusText = $"Executado em {result.DurationMs} ms. {result.Tables.Count} conjunto(s) retornado(s).";
-                    ToastService.Instance.ShowSuccess($"Query executada em {result.DurationMs} ms ({totalRows:N0} linhas)", "Sucesso");
-                    AppLogService.Instance.LogSuccess("Editor SQL", $"Query concluída em {result.DurationMs} ms. Retornou {totalRows:N0} linhas.", sql);
+                    if (ResultTabs.Count > 0)
+                    {
+                        StatusText = $"Concluído em {swTotal.ElapsedMilliseconds} ms ({statements.Count} comando(s), {ResultTabs.Count} aba(s), {totalRows:N0} linhas).";
+                        ToastService.Instance.ShowSuccess($"Executado em {swTotal.ElapsedMilliseconds} ms ({ResultTabs.Count} resultado(s))", "Sucesso");
+                    }
+                    else
+                    {
+                        StatusText = $"Concluído em {swTotal.ElapsedMilliseconds} ms ({statements.Count} comando(s), {totalAffected:N0} linhas afetadas).";
+                        ToastService.Instance.ShowSuccess($"Executado em {swTotal.ElapsedMilliseconds} ms ({totalAffected:N0} afetadas)", "Sucesso");
+                    }
                 }
 
-                foreach (var msg in result.Messages)
-                {
-                    msgSb.AppendLine(msg);
-                }
-
+                msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] Execução finalizada em {swTotal.ElapsedMilliseconds} ms.");
                 MessagesText = msgSb.ToString();
-                SelectedResultTabIndex = ResultTabs.Count > 0 ? 0 : -1;
 
-                // Save to history
+                // Salvar no histórico
                 var historyItem = new QueryHistoryItem
                 {
                     Timestamp = DateTime.Now,
                     Sql = sql,
                     ConnectionName = Connection.Name,
                     Database = Database,
-                    DurationMs = result.DurationMs,
-                    RowsAffected = result.TotalRowsAffected,
-                    Success = !result.HasError,
-                    ErrorMessage = result.ErrorMessage
+                    DurationMs = swTotal.ElapsedMilliseconds,
+                    RowsAffected = TotalRowsAffected,
+                    Success = !hasAnyError,
+                    ErrorMessage = firstErrorMessage
                 };
                 var history = _storageService.LoadHistory();
                 history.Insert(0, historyItem);
@@ -288,17 +365,19 @@ namespace NertyDb.ViewModels
             }
             catch (OperationCanceledException)
             {
-                sw.Stop();
+                swTotal.Stop();
                 StatusText = "Consulta cancelada pelo usuário.";
-                MessagesText = $"[{DateTime.Now:HH:mm:ss}] ⚠️ Execução cancelada pelo usuário após {sw.ElapsedMilliseconds} ms.";
+                msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] ⚠️ Execução cancelada pelo usuário após {swTotal.ElapsedMilliseconds} ms.");
+                MessagesText = msgSb.ToString();
                 ToastService.Instance.ShowWarning("Execução cancelada pelo usuário.", "Cancelado");
                 AppLogService.Instance.LogWarning("Editor SQL", "Execução cancelada pelo usuário.", sql);
             }
             catch (Exception ex)
             {
-                sw.Stop();
+                swTotal.Stop();
                 StatusText = $"Erro: {ex.Message}";
-                MessagesText = $"[{DateTime.Now:HH:mm:ss}] ❌ Exceção: {ex.Message}";
+                msgSb.AppendLine($"[{DateTime.Now:HH:mm:ss}] ❌ Exceção inesperada: {ex.Message}");
+                MessagesText = msgSb.ToString();
                 ToastService.Instance.ShowError($"Exceção: {ex.Message}", "Erro de Execução");
                 AppLogService.Instance.LogError("Editor SQL", $"Exceção: {ex.Message}", sql);
             }
@@ -313,18 +392,22 @@ namespace NertyDb.ViewModels
             if (string.IsNullOrWhiteSpace(sql))
                 return ("dbo", "", false, "SQL vazio");
 
+            // Strip comments first
+            var cleanSql = SqlScriptParser.StripLeadingComments(sql);
+
             // Check for JOIN, GROUP BY, UNION, or aggregate functions
-            bool hasJoin = Regex.IsMatch(sql, @"\b(?:INNER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\b", RegexOptions.IgnoreCase);
-            bool hasGroupBy = Regex.IsMatch(sql, @"\bGROUP\s+BY\b", RegexOptions.IgnoreCase);
-            bool hasUnion = Regex.IsMatch(sql, @"\bUNION\b", RegexOptions.IgnoreCase);
-            bool hasAggregates = Regex.IsMatch(sql, @"\b(?:COUNT|SUM|AVG|MIN|MAX)\s*\(", RegexOptions.IgnoreCase);
+            bool hasJoin = Regex.IsMatch(cleanSql, @"\b(?:INNER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\b", RegexOptions.IgnoreCase);
+            bool hasGroupBy = Regex.IsMatch(cleanSql, @"\bGROUP\s+BY\b", RegexOptions.IgnoreCase);
+            bool hasUnion = Regex.IsMatch(cleanSql, @"\bUNION\b", RegexOptions.IgnoreCase);
+            bool hasAggregates = Regex.IsMatch(cleanSql, @"\b(?:COUNT|SUM|AVG|MIN|MAX)\s*\(", RegexOptions.IgnoreCase);
 
             if (hasJoin) return ("dbo", "", false, "Consulta possui cláusula JOIN");
             if (hasGroupBy) return ("dbo", "", false, "Consulta possui agrupamento (GROUP BY)");
             if (hasUnion) return ("dbo", "", false, "Consulta possui união (UNION)");
             if (hasAggregates) return ("dbo", "", false, "Consulta possui funções agregadas");
 
-            var match = Regex.Match(sql, @"\bFROM\s+(?:\[?(\w+)\]?\.)?\[?(\w+)\]?", RegexOptions.IgnoreCase);
+            // Support: FROM [schema].[table], FROM "schema"."table", FROM schema.table, FROM [table], FROM "table", FROM table
+            var match = Regex.Match(cleanSql, @"\bFROM\s+(?:[\[""]?(\w+)[\]""]?\.)?[\[""]?(\w+)[\]""]?", RegexOptions.IgnoreCase);
             if (match.Success)
             {
                 var schema = match.Groups[1].Success ? match.Groups[1].Value : "dbo";
