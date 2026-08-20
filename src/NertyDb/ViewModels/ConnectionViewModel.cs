@@ -379,10 +379,10 @@ namespace NertyDb.ViewModels
 
             SaveProfilesCommand = new RelayCommand(() =>
             {
-                if (SelectedProfile != null)
+                foreach (var profile in SavedProfiles)
                 {
-                    SelectedProfile.UpdateEncryptedPassword();
-                    SelectedProfile.UpdateEncryptedSguPassword();
+                    profile.UpdateEncryptedPassword();
+                    profile.UpdateEncryptedSguPassword();
                 }
                 _storageService.SaveConnections(SavedProfiles.ToList());
                 TestResultMessage = "Perfis salvos com sucesso!";
@@ -678,8 +678,11 @@ namespace NertyDb.ViewModels
                 IsTesting = false;
             }
 
-            SelectedProfile.UpdateEncryptedPassword();
-            SelectedProfile.UpdateEncryptedSguPassword();
+            foreach (var profile in SavedProfiles)
+            {
+                profile.UpdateEncryptedPassword();
+                profile.UpdateEncryptedSguPassword();
+            }
             _storageService.SaveConnections(SavedProfiles.ToList());
             
             var db = SelectedProfile.DatabaseType == DatabaseType.Oracle 

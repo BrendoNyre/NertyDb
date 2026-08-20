@@ -1,14 +1,14 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
-using System.Windows;
 
 namespace NertyDb.Services
 {
     /// <summary>
-    /// Fornece acesso robusto, resiliente e seguro à área de transferência do Windows.
-    /// Trata bloqueios temporários (RDP, Win+V, AnyDesk, Antivírus) com retentativas e fallback nativo Win32.
-    /// Garante que nenhuma exceção não tratada seja propagada para a interface.
+    /// Fornece acesso robusto, resiliente e seguro à área de transferência do Windows via Win32 API.
+    /// Não depende do pipeline OLE/COM do WPF (evitando AccessViolation 0xc0000005 e COMException).
+    /// Funciona de forma segura em qualquer thread e trata bloqueios temporários com retentativas.
     /// </summary>
     public static class ClipboardHelper
     {
@@ -46,106 +46,34 @@ namespace NertyDb.Services
         private static extern IntPtr GlobalFree(IntPtr hMem);
 
         /// <summary>
-        /// Define o texto da área de transferência com retentativas e fallback Win32 nativo.
+        /// Define o texto da área de transferência de forma nativa e segura com retentativas.
         /// </summary>
         public static bool SetText(string? text)
         {
             if (text == null) text = string.Empty;
 
-            // 1. Tentar via WPF Clipboard com retentativas
-            for (int i = 0; i < 5; i++)
-            {
-                try
-                {
-                    Clipboard.SetDataObject(text, false);
-                    return true;
-                }
-                catch (COMException)
-                {
-                    Thread.Sleep(25);
-                }
-                catch (Exception)
-                {
-                    Thread.Sleep(25);
-                }
-            }
-
-            // 2. Fallback de baixo nível via Win32 API (não depende de OLE e funciona de qualquer thread)
-            return SetTextWin32(text);
-        }
-
-        /// <summary>
-        /// Obtém o texto da área de transferência de forma segura.
-        /// </summary>
-        public static string GetText()
-        {
-            // 1. Tentar via WPF Clipboard com retentativas
-            for (int i = 0; i < 5; i++)
-            {
-                try
-                {
-                    if (Clipboard.ContainsText())
-                    {
-                        return Clipboard.GetText();
-                    }
-                    return string.Empty;
-                }
-                catch (COMException)
-                {
-                    Thread.Sleep(25);
-                }
-                catch (Exception)
-                {
-                    Thread.Sleep(25);
-                }
-            }
-
-            // 2. Fallback Win32
-            return GetTextWin32();
-        }
-
-        /// <summary>
-        /// Verifica se a área de transferência contém texto.
-        /// </summary>
-        public static bool ContainsText()
-        {
-            try
-            {
-                if (Clipboard.ContainsText()) return true;
-            }
-            catch { }
-
-            try
-            {
-                return IsClipboardFormatAvailable(CF_UNICODETEXT);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static bool SetTextWin32(string text)
-        {
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 6; i++)
             {
                 if (OpenClipboard(IntPtr.Zero))
                 {
                     try
                     {
                         EmptyClipboard();
-                        var bytesCount = (text.Length + 1) * 2; // UTF-16 Unicode
-                        var hGlobal = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)bytesCount);
+
+                        // Codifica texto em UTF-16 LE com terminador nulo duplo
+                        byte[] bytes = Encoding.Unicode.GetBytes(text + "\0");
+                        var hGlobal = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)bytes.Length);
                         if (hGlobal != IntPtr.Zero)
                         {
                             var target = GlobalLock(hGlobal);
                             if (target != IntPtr.Zero)
                             {
-                                Marshal.Copy(text.ToCharArray(), 0, target, text.Length);
-                                Marshal.WriteInt16(target + (text.Length * 2), 0); // Null terminator
+                                Marshal.Copy(bytes, 0, target, bytes.Length);
                                 GlobalUnlock(hGlobal);
+
                                 if (SetClipboardData(CF_UNICODETEXT, hGlobal) != IntPtr.Zero)
                                 {
+                                    // Sucesso: o sistema operacional agora é dono do hGlobal
                                     return true;
                                 }
                             }
@@ -158,14 +86,17 @@ namespace NertyDb.Services
                         CloseClipboard();
                     }
                 }
-                Thread.Sleep(25);
+                Thread.Sleep(20);
             }
             return false;
         }
 
-        private static string GetTextWin32()
+        /// <summary>
+        /// Obtém o texto da área de transferência de forma nativa e segura.
+        /// </summary>
+        public static string GetText()
         {
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 6; i++)
             {
                 if (OpenClipboard(IntPtr.Zero))
                 {
@@ -194,9 +125,24 @@ namespace NertyDb.Services
                         CloseClipboard();
                     }
                 }
-                Thread.Sleep(25);
+                Thread.Sleep(20);
             }
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Verifica se a área de transferência contém texto Unicode.
+        /// </summary>
+        public static bool ContainsText()
+        {
+            try
+            {
+                return IsClipboardFormatAvailable(CF_UNICODETEXT);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

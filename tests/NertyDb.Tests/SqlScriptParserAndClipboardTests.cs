@@ -163,5 +163,61 @@ namespace NertyDb.Tests
             Assert.Equal("SELECT 1", stmts[0].Sql);
             Assert.Equal("SELECT 2", stmts[1].Sql);
         }
+
+        [Fact]
+        public void ConnectionProfile_PasswordEncryptionAndPersistence_MaintainsDecryptedPasswordAcrossCycles()
+        {
+            var profile = new Models.ConnectionProfile
+            {
+                Name = "Test Connection",
+                Server = "localhost",
+                Username = "sa",
+                SavePassword = true,
+                Password = "SecretPassword123!",
+                SguPassword = "SguSecret456!"
+            };
+
+            // Ensure encrypted password was generated
+            Assert.False(string.IsNullOrEmpty(profile.EncryptedPassword));
+            Assert.False(string.IsNullOrEmpty(profile.EncryptedSguPassword));
+
+            // Serialize to JSON and deserialize (simulating closing and reopening app)
+            var json = System.Text.Json.JsonSerializer.Serialize(profile);
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize<Models.ConnectionProfile>(json);
+
+            Assert.NotNull(deserialized);
+            Assert.Equal("SecretPassword123!", deserialized.Password);
+            Assert.Equal("SguSecret456!", deserialized.SguPassword);
+
+            // Calling UpdateEncryptedPassword when deserialized must NOT wipe out the encrypted password
+            deserialized.UpdateEncryptedPassword();
+            deserialized.UpdateEncryptedSguPassword();
+
+            Assert.False(string.IsNullOrEmpty(deserialized.EncryptedPassword));
+            Assert.False(string.IsNullOrEmpty(deserialized.EncryptedSguPassword));
+            Assert.Equal("SecretPassword123!", deserialized.Password);
+        }
+
+        [Fact]
+        public void ConnectionProfile_TogglingSavePassword_ClearsOrReEncrypts()
+        {
+            var profile = new Models.ConnectionProfile
+            {
+                Name = "Test Toggle",
+                SavePassword = true,
+                Password = "MyPassword"
+            };
+
+            Assert.False(string.IsNullOrEmpty(profile.EncryptedPassword));
+
+            // Disabling SavePassword clears the encrypted password
+            profile.SavePassword = false;
+            Assert.Null(profile.EncryptedPassword);
+
+            // Re-enabling SavePassword re-encrypts the in-memory password
+            profile.SavePassword = true;
+            Assert.False(string.IsNullOrEmpty(profile.EncryptedPassword));
+            Assert.Equal("MyPassword", profile.Password);
+        }
     }
 }

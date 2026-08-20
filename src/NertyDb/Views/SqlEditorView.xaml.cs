@@ -49,10 +49,18 @@ namespace NertyDb.Views
             Editor.TextArea.TextEntered += TextArea_TextEntered;
             Editor.KeyDown += Editor_KeyDown;
 
-            // Safe Clipboard Commands for AvalonEdit (prevents COMException crash when clipboard is locked)
-            Editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Copy, SafeCopyExecuted, SafeCopyCanExecute));
-            Editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Cut, SafeCutExecuted, SafeCutCanExecute));
-            Editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Paste, SafePasteExecuted, SafePasteCanExecute));
+            // Safe Clipboard Commands for AvalonEdit (prevents COMException / AccessViolation crash)
+            var copyBinding = new CommandBinding(ApplicationCommands.Copy, SafeCopyExecuted, SafeCopyCanExecute);
+            var cutBinding = new CommandBinding(ApplicationCommands.Cut, SafeCutExecuted, SafeCutCanExecute);
+            var pasteBinding = new CommandBinding(ApplicationCommands.Paste, SafePasteExecuted, SafePasteCanExecute);
+
+            Editor.CommandBindings.Add(copyBinding);
+            Editor.CommandBindings.Add(cutBinding);
+            Editor.CommandBindings.Add(pasteBinding);
+
+            Editor.TextArea.CommandBindings.Add(copyBinding);
+            Editor.TextArea.CommandBindings.Add(cutBinding);
+            Editor.TextArea.CommandBindings.Add(pasteBinding);
         }
 
         private void SafeCopyExecuted(object sender, ExecutedRoutedEventArgs e)
@@ -179,7 +187,51 @@ namespace NertyDb.Views
 
         private void TextArea_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if ((e.Key == Key.Enter || e.Key == Key.Return) && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            var isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            var isShift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            var isAlt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+            // Safe Copy (Ctrl+C)
+            if (e.Key == Key.C && isCtrl && !isShift && !isAlt)
+            {
+                var selected = Editor.SelectedText;
+                if (!string.IsNullOrEmpty(selected))
+                {
+                    e.Handled = true;
+                    ClipboardHelper.SetText(selected);
+                    return;
+                }
+            }
+
+            // Safe Cut (Ctrl+X)
+            if (e.Key == Key.X && isCtrl && !isShift && !isAlt)
+            {
+                var selected = Editor.SelectedText;
+                if (!string.IsNullOrEmpty(selected) && !Editor.IsReadOnly)
+                {
+                    e.Handled = true;
+                    ClipboardHelper.SetText(selected);
+                    Editor.SelectedText = string.Empty;
+                    return;
+                }
+            }
+
+            // Safe Paste (Ctrl+V)
+            if (e.Key == Key.V && isCtrl && !isShift && !isAlt)
+            {
+                if (!Editor.IsReadOnly && ClipboardHelper.ContainsText())
+                {
+                    var text = ClipboardHelper.GetText();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        e.Handled = true;
+                        Editor.SelectedText = text;
+                        return;
+                    }
+                }
+            }
+
+            if ((e.Key == Key.Enter || e.Key == Key.Return) && isCtrl)
             {
                 e.Handled = true;
                 _completionDebounceTimer.Stop();

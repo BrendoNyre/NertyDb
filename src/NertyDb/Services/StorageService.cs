@@ -18,13 +18,17 @@ namespace NertyDb.Services
 
     public class StorageService
     {
-        private static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
-        private static readonly string DataDir = Path.Combine(AppDir, "data");
+        private static readonly string AppDataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "NertyDb");
 
-        private static readonly string ConnectionsFile = Path.Combine(DataDir, "connections.json");
-        private static readonly string HistoryFile = Path.Combine(DataDir, "history.json");
-        private static readonly string SnippetsFile = Path.Combine(DataDir, "snippets.json");
-        private static readonly string SettingsFile = Path.Combine(DataDir, "settings.json");
+        private static readonly string LegacyAppDir = AppDomain.CurrentDomain.BaseDirectory;
+        private static readonly string LegacyDataDir = Path.Combine(LegacyAppDir, "data");
+
+        private static readonly string ConnectionsFile = Path.Combine(AppDataDir, "connections.json");
+        private static readonly string HistoryFile = Path.Combine(AppDataDir, "history.json");
+        private static readonly string SnippetsFile = Path.Combine(AppDataDir, "snippets.json");
+        private static readonly string SettingsFile = Path.Combine(AppDataDir, "settings.json");
 
         private static readonly JsonSerializerOptions JsonOpts = new()
         {
@@ -41,9 +45,27 @@ namespace NertyDb.Services
         {
             try
             {
-                if (!Directory.Exists(DataDir))
+                if (!Directory.Exists(AppDataDir))
                 {
-                    Directory.CreateDirectory(DataDir);
+                    Directory.CreateDirectory(AppDataDir);
+                }
+
+                // Migrate legacy files from BaseDirectory/data if they exist and target does not exist yet
+                MigrateLegacyFile(Path.Combine(LegacyDataDir, "connections.json"), ConnectionsFile);
+                MigrateLegacyFile(Path.Combine(LegacyDataDir, "history.json"), HistoryFile);
+                MigrateLegacyFile(Path.Combine(LegacyDataDir, "snippets.json"), SnippetsFile);
+                MigrateLegacyFile(Path.Combine(LegacyDataDir, "settings.json"), SettingsFile);
+            }
+            catch { }
+        }
+
+        private static void MigrateLegacyFile(string legacyPath, string targetPath)
+        {
+            try
+            {
+                if (File.Exists(legacyPath) && !File.Exists(targetPath))
+                {
+                    File.Copy(legacyPath, targetPath, overwrite: false);
                 }
             }
             catch { }

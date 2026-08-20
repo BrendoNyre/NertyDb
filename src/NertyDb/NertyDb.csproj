@@ -9,9 +9,9 @@
     <ApplicationTitle>NertyDb - Cliente de Banco de Dados Senior</ApplicationTitle>
     <AssemblyName>NertyDb</AssemblyName>
     <RootNamespace>NertyDb</RootNamespace>
-    <Version>1.5.0</Version>
-    <AssemblyVersion>1.5.0.0</AssemblyVersion>
-    <FileVersion>1.5.0.0</FileVersion>
+    <Version>1.6.0</Version>
+    <AssemblyVersion>1.6.0.0</AssemblyVersion>
+    <FileVersion>1.6.0.0</FileVersion>
     
     <!-- Single File / Self-Contained Publishing Config -->
     <PublishSingleFile>true</PublishSingleFile>
@@ -19,12 +19,6 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-
-    <!-- IL Trimming Optimizations with Full COM Interop and WPF Support -->
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>partial</TrimMode>
-    <_SuppressWpfTrimError>true</_SuppressWpfTrimError>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     
     <!-- Garbage Collection & Runtime Performance -->
     <ServerGarbageCollection>false</ServerGarbageCollection>

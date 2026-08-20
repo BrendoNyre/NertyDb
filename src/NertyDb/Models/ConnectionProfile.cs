@@ -145,7 +145,8 @@ namespace NertyDb.Models
 
         public void UpdateEncryptedPassword()
         {
-            if (string.IsNullOrEmpty(_plainPassword))
+            var plain = Password;
+            if (string.IsNullOrEmpty(plain))
             {
                 EncryptedPassword = null;
             }
@@ -153,13 +154,13 @@ namespace NertyDb.Models
             {
                 try
                 {
-                    byte[] plainBytes = Encoding.UTF8.GetBytes(_plainPassword);
+                    byte[] plainBytes = Encoding.UTF8.GetBytes(plain);
                     byte[] encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
                     EncryptedPassword = Convert.ToBase64String(encryptedBytes);
                 }
                 catch
                 {
-                    EncryptedPassword = Convert.ToBase64String(Encoding.UTF8.GetBytes(_plainPassword));
+                    EncryptedPassword = Convert.ToBase64String(Encoding.UTF8.GetBytes(plain));
                 }
             }
             else
@@ -170,7 +171,8 @@ namespace NertyDb.Models
 
         public void UpdateEncryptedSguPassword()
         {
-            if (string.IsNullOrEmpty(_plainSguPassword))
+            var plain = SguPassword;
+            if (string.IsNullOrEmpty(plain))
             {
                 EncryptedSguPassword = null;
             }
@@ -178,13 +180,13 @@ namespace NertyDb.Models
             {
                 try
                 {
-                    byte[] plainBytes = Encoding.UTF8.GetBytes(_plainSguPassword);
+                    byte[] plainBytes = Encoding.UTF8.GetBytes(plain);
                     byte[] encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
                     EncryptedSguPassword = Convert.ToBase64String(encryptedBytes);
                 }
                 catch
                 {
-                    EncryptedSguPassword = Convert.ToBase64String(Encoding.UTF8.GetBytes(_plainSguPassword));
+                    EncryptedSguPassword = Convert.ToBase64String(Encoding.UTF8.GetBytes(plain));
                 }
             }
             else
