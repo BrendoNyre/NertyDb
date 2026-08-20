@@ -520,6 +520,14 @@ namespace NertyDb.Views
             var isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
             var isAlt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
 
+            // Copy (Ctrl+C) — intercept BEFORE WPF DataGrid default handler, which calls Clipboard.SetDataObject directly
+            if (e.Key == Key.C && isCtrl && !isAlt)
+            {
+                e.Handled = true;
+                CopyGridCellsToClipboard(grid, vm);
+                return;
+            }
+
             // Paste (Ctrl+V)
             if (e.Key == Key.V && isCtrl && !isAlt)
             {
@@ -681,6 +689,60 @@ namespace NertyDb.Views
                 return h.Replace("🔑 ", "").Trim();
             }
             return col.Header?.ToString() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Copia células selecionadas para a área de transferência usando ClipboardHelper (seguro).
+        /// Replica o comportamento padrão do WPF DataGrid: colunas separadas por Tab, linhas por nova linha.
+        /// Chamado pelo Ctrl+C interceptado em ResultGrid_PreviewKeyDown.
+        /// </summary>
+        private static void CopyGridCellsToClipboard(DataGrid grid, SqlResultTabViewModel vm)
+        {
+            try
+            {
+                var selectedCells = grid.SelectedCells.ToList();
+                if (selectedCells.Count == 0) return;
+
+                // Group selected cells by row then column display index
+                var ordered = selectedCells
+                    .Where(c => c.Item is DataRowView && c.Column != null)
+                    .Select(c => new
+                    {
+                        RowView = (DataRowView)c.Item,
+                        RowIndex = vm.Data.Rows.IndexOf(((DataRowView)c.Item).Row),
+                        DisplayIndex = c.Column.DisplayIndex,
+                        ColumnName = GetColumnName(c.Column)
+                    })
+                    .Where(c => !string.IsNullOrEmpty(c.ColumnName))
+                    .OrderBy(c => c.RowIndex)
+                    .ThenBy(c => c.DisplayIndex)
+                    .ToList();
+
+                if (ordered.Count == 0) return;
+
+                var sb = new StringBuilder();
+                int currentRowIdx = -1;
+                bool firstCellInRow = true;
+
+                foreach (var cell in ordered)
+                {
+                    if (cell.RowIndex != currentRowIdx)
+                    {
+                        if (currentRowIdx != -1) sb.AppendLine();
+                        currentRowIdx = cell.RowIndex;
+                        firstCellInRow = true;
+                    }
+
+                    if (!firstCellInRow) sb.Append('\t');
+                    firstCellInRow = false;
+
+                    var val = cell.RowView[cell.ColumnName];
+                    sb.Append(val == DBNull.Value ? "" : val?.ToString() ?? "");
+                }
+
+                ClipboardHelper.SetText(sb.ToString());
+            }
+            catch { }
         }
 
         private void ResultGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)

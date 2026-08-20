@@ -125,6 +125,7 @@
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
                       IsReadOnly="{Binding IsReadOnly}"
+                      ClipboardCopyMode="None"
                       SelectionUnit="CellOrRowHeader"
                       SelectionMode="Extended">
                 <DataGrid.ContextMenu>

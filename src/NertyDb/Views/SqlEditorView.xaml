@@ -140,6 +140,7 @@
                                                   CanUserSortColumns="True"
                                                   CanUserReorderColumns="True"
                                                   CanUserResizeColumns="True"
+                                                  ClipboardCopyMode="None"
                                                   SelectionUnit="CellOrRowHeader"
                                                   SelectionMode="Extended">
                                             <DataGrid.ContextMenu>

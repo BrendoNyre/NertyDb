@@ -50,7 +50,23 @@ namespace NertyDb.Models
         [JsonPropertyName("EncryptedPassword")]
         public string? EncryptedPassword { get; set; }
 
-        public bool SavePassword { get; set; } = true;
+        private bool _savePassword = true;
+        public bool SavePassword
+        {
+            get => _savePassword;
+            set
+            {
+                if (_savePassword != value)
+                {
+                    _savePassword = value;
+                    // Re-run encryption whenever the save flag changes:
+                    // If turning ON  → encrypt and persist the in-memory password
+                    // If turning OFF → clear the persisted EncryptedPassword
+                    UpdateEncryptedPassword();
+                    UpdateEncryptedSguPassword();
+                }
+            }
+        }
         public bool TrustServerCertificate { get; set; } = true;
         public bool Encrypt { get; set; } = false;
         public int ConnectionTimeout { get; set; } = 15;

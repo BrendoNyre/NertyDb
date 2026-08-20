@@ -156,10 +156,21 @@ namespace NertyDb.Views
 
         private void MainDataGrid_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (ViewModel == null || ViewModel.IsReadOnly) return;
+            if (ViewModel == null) return;
 
             var isCtrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == System.Windows.Input.ModifierKeys.Control;
             var isAlt = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Alt) == System.Windows.Input.ModifierKeys.Alt;
+
+            // Copy (Ctrl+C) — intercept BEFORE WPF DataGrid default handler, which calls Clipboard.SetDataObject directly
+            if (e.Key == System.Windows.Input.Key.C && isCtrl && !isAlt)
+            {
+                e.Handled = true;
+                CopyMainGridCellsToClipboard();
+                return;
+            }
+
+            // Operations below require editable mode
+            if (ViewModel.IsReadOnly) return;
 
             // Paste (Ctrl+V)
             if (e.Key == System.Windows.Input.Key.V && isCtrl && !isAlt)
@@ -198,6 +209,58 @@ namespace NertyDb.Views
                 e.Handled = true;
                 ViewModel.DuplicateRowCommand.Execute(MainDataGrid.SelectedItem);
             }
+        }
+
+        /// <summary>
+        /// Copia células selecionadas do MainDataGrid para a área de transferência usando ClipboardHelper (seguro).
+        /// Funciona em modo leitura e edição. Colunas separadas por Tab, linhas por nova linha.
+        /// </summary>
+        private void CopyMainGridCellsToClipboard()
+        {
+            try
+            {
+                var selectedCells = MainDataGrid.SelectedCells.ToList();
+                if (selectedCells.Count == 0) return;
+
+                var ordered = selectedCells
+                    .Where(c => c.Item is DataRowView && c.Column != null)
+                    .Select(c => new
+                    {
+                        RowView = (DataRowView)c.Item,
+                        RowIndex = ViewModel!.TableData.Rows.IndexOf(((DataRowView)c.Item).Row),
+                        DisplayIndex = c.Column.DisplayIndex,
+                        ColumnName = GetColumnName(c.Column)
+                    })
+                    .Where(c => !string.IsNullOrEmpty(c.ColumnName))
+                    .OrderBy(c => c.RowIndex)
+                    .ThenBy(c => c.DisplayIndex)
+                    .ToList();
+
+                if (ordered.Count == 0) return;
+
+                var sb = new StringBuilder();
+                int currentRowIdx = -1;
+                bool firstCellInRow = true;
+
+                foreach (var cell in ordered)
+                {
+                    if (cell.RowIndex != currentRowIdx)
+                    {
+                        if (currentRowIdx != -1) sb.AppendLine();
+                        currentRowIdx = cell.RowIndex;
+                        firstCellInRow = true;
+                    }
+
+                    if (!firstCellInRow) sb.Append('\t');
+                    firstCellInRow = false;
+
+                    var val = cell.RowView[cell.ColumnName];
+                    sb.Append(val == DBNull.Value ? "" : val?.ToString() ?? "");
+                }
+
+                ClipboardHelper.SetText(sb.ToString());
+            }
+            catch { }
         }
 
         private void HandleGridPaste()
